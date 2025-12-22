@@ -247,6 +247,67 @@ async function main() {
     console.log('✓ Attendance records created (~300)');
 
     // =========================================================================
+    // 12. PENDING ATTENDANCE for Assistant Approval (Session 4)
+    // =========================================================================
+    // Create explicit PENDING records in session 4 for assistant to approve
+    for (const cls of classes.slice(0, 3)) { // First 3 classes
+        const session4 = await prisma.classSession.findFirst({
+            where: { class_id: cls.id, session_number: 4 }
+        });
+
+        const enrollments = await prisma.enrollment.findMany({
+            where: { class_id: cls.id },
+            take: 5 // First 5 students per class
+        });
+
+        for (const enrollment of enrollments) {
+            await prisma.studentAttendance.create({
+                data: {
+                    enrollment_class_id: enrollment.class_id,
+                    enrollment_user_id: enrollment.user_id,
+                    session_id: session4.id,
+                    status: 'PENDING', // Waiting for assistant approval
+                    submitted_at: new Date()
+                }
+            });
+        }
+    }
+    console.log('✓ PENDING attendance for assistant approval (15 records)');
+
+    // =========================================================================
+    // 13. PERMISSION REQUESTS for Admin Approval
+    // =========================================================================
+    // Students request permission (IZIN) - requires admin approval
+    const permissionReasons = ['SAKIT', 'KEGIATAN_KAMPUS', 'LAIN_LAIN'];
+
+    for (const cls of classes.slice(0, 5)) { // First 5 classes
+        const session5 = await prisma.classSession.findFirst({
+            where: { class_id: cls.id, session_number: 5 }
+        });
+
+        const enrollments = await prisma.enrollment.findMany({
+            where: { class_id: cls.id },
+            take: 3 // 3 students per class request permission
+        });
+
+        for (let i = 0; i < enrollments.length; i++) {
+            const enrollment = enrollments[i];
+            const reason = permissionReasons[i % permissionReasons.length];
+            await prisma.permissionRequest.create({
+                data: {
+                    session_id: session5.id,
+                    student_id: enrollment.user_id,  // Correct field name
+                    reason: reason,
+                    file_name: `surat_izin_${enrollment.user_id}.pdf`, // Required
+                    file_data: 'data:application/pdf;base64,JVBERi0xLjQKMQ==', // Dummy base64
+                    status: 'PENDING' // Waiting for admin approval
+                }
+            });
+        }
+    }
+    console.log('✓ Permission requests for admin approval (15 records)');
+
+    // =========================================================================
     // SUMMARY
     // =========================================================================
     console.log('\n======================================');
@@ -256,6 +317,10 @@ async function main() {
     console.log(`Students:   student1@student.com to student30@student.com / password123`);
     console.log(`Classes:    10 classes, 3 assistants each`);
     console.log(`Enrollments: 10 students per class`);
+    console.log('');
+    console.log('TESTING APPROVAL WORKFLOWS:');
+    console.log('  - Assistant approval: 15 PENDING records in Session 4');
+    console.log('  - Admin approval: 15 Permission Requests in Session 5');
     console.log('======================================\n');
 }
 
