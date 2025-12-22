@@ -544,6 +544,129 @@ export const getClassSessions = async (req, res) => {
     }
 };
 
+// =============================================================================
+// ATTENDANCE RECAP (Grid View)
+// =============================================================================
+
+/**
+ * Get attendance recap for a class (spreadsheet-like grid)
+ * GET /api/teaching/classes/:classId/recap
+ * Returns: { class, sessions[], students: [{ name, email, attendances: {1: 'HADIR', 2: 'ALPHA', ...} }] }
+ */
+export const getAttendanceRecap = async (req, res) => {
+    try {
+        const { classId } = req.params;
+        const userId = req.user.id;
+        const isAdmin = req.user.is_admin;
+
+        // Check access (admin can see all, assistant only their classes)
+        if (!isAdmin) {
+            const assignment = await prisma.classAssistant.findUnique({
+                where: {
+                    class_id_user_id: {
+                        class_id: parseInt(classId),
+                        user_id: userId
+                    }
+                }
+            });
+
+            if (!assignment) {
+                return apiResponse.error(res, 'Access denied. Not assigned to this class.', 403);
+            }
+        }
+
+        // Get class with sessions
+        const classData = await prisma.class.findUnique({
+            where: { id: parseInt(classId) },
+            include: {
+                course: true,
+                semester: true,
+                time_slot: true,
+                room: true,
+                sessions: { orderBy: { session_number: 'asc' } },
+                assistants: { include: { user: { select: { id: true, name: true } } } }
+            }
+        });
+
+        if (!classData) {
+            return apiResponse.error(res, 'Class not found.', 404);
+        }
+
+        // Get all enrollments with attendance
+        const enrollments = await prisma.enrollment.findMany({
+            where: { class_id: parseInt(classId) },
+            include: {
+                user: { select: { id: true, name: true, email: true } },
+                attendances: {
+                    include: { session: true }
+                }
+            },
+            orderBy: { user: { name: 'asc' } }
+        });
+
+        // Build recap grid
+        const students = enrollments.map(enrollment => {
+            // Create attendance map: session_number -> { status, grade }
+            const attendanceMap = {};
+            for (const session of classData.sessions) {
+                const att = enrollment.attendances.find(a => a.session_id === session.id);
+                attendanceMap[session.session_number] = att ? {
+                    status: att.status,
+                    grade: att.grade
+                } : null;
+            }
+
+            return {
+                id: enrollment.user.id,
+                name: enrollment.user.name,
+                email: enrollment.user.email,
+                attendances: attendanceMap
+            };
+        });
+
+        // Calculate summary stats per session
+        const sessionStats = classData.sessions.map(session => {
+            let hadir = 0, alpha = 0, pending = 0, izin = 0;
+            for (const student of students) {
+                const att = student.attendances[session.session_number];
+                if (!att) alpha++;
+                else if (att.status === 'HADIR') hadir++;
+                else if (att.status === 'PENDING') pending++;
+                else if (att.status === 'ALPHA' || att.status === 'REJECTED') alpha++;
+                else izin++;
+            }
+            return { session_number: session.session_number, hadir, alpha, pending, izin };
+        });
+
+        const recap = {
+            class: {
+                id: classData.id,
+                name: classData.name,
+                course: classData.course,
+                semester: classData.semester,
+                day_name: DAY_NAMES[classData.day_of_week],
+                time_slot: classData.time_slot,
+                room: classData.room,
+                assistants: classData.assistants.map(a => a.user)
+            },
+            sessions: classData.sessions.map(s => ({
+                id: s.id,
+                session_number: s.session_number,
+                topic: s.topic,
+                type: s.type
+            })),
+            students,
+            stats: sessionStats,
+            total_students: students.length
+        };
+
+        return apiResponse.success(res, recap, 'Attendance recap retrieved.');
+    } catch (error) {
+        console.error('Get attendance recap error:', error);
+        return apiResponse.error(res, 'Internal server error.', 500);
+    }
+};
+
 export default {
     getSchedule,
     checkIn,
@@ -552,5 +675,7 @@ export default {
     rejectAttendance,
     getSessionRoster,
     updateBatchAttendance,
-    getClassSessions
+    getClassSessions,
+    getAttendanceRecap
 };
+

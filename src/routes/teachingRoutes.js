@@ -15,7 +15,8 @@ import {
     rejectAttendance,
     getSessionRoster,
     updateBatchAttendance,
-    getClassSessions
+    getClassSessions,
+    getAttendanceRecap
 } from '../controllers/teachingController.js';
 
 const router = Router();
@@ -95,4 +96,16 @@ router.get('/sessions/:sessionId/roster', verifyAssistantForSession, getSessionR
  */
 router.put('/sessions/:sessionId/update-batch', verifyAssistantForSession, updateBatchAttendance);
 
+// =============================================================================
+// ATTENDANCE RECAP (Grid View)
+// =============================================================================
+
+/**
+ * @route   GET /api/teaching/classes/:classId/recap
+ * @desc    Get attendance recap grid for a class (spreadsheet view)
+ * @access  Assistant of class or Admin
+ */
+router.get('/classes/:classId/recap', getAttendanceRecap);
+
 export default router;
+
