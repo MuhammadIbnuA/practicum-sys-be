@@ -183,6 +183,7 @@ model ClassSession {
   permissionRequests  PermissionRequest[]
 
   @@unique([class_id, session_number])
+  @@index([class_id]) // Performance: queries by class
   @@map("class_sessions")
 }
 
@@ -201,6 +202,7 @@ model Enrollment {
   attendances StudentAttendance[]
 
   @@id([class_id, user_id])
+  @@index([user_id]) // Performance: queries by user
   @@map("enrollments")
 }
 
@@ -228,6 +230,8 @@ model StudentAttendance {
   approved_by User?       @relation("ApprovedBy", fields: [approved_by_id], references: [id])
 
   @@unique([enrollment_class_id, enrollment_user_id, session_id])
+  @@index([session_id]) // Performance: queries by session
+  @@index([status]) // Performance: filter by status (PENDING, etc.)
   @@map("student_attendances")
 }
 
@@ -269,5 +273,8 @@ model PermissionRequest {
   student User         @relation(fields: [student_id], references: [id], onDelete: Cascade)
   session ClassSession @relation(fields: [session_id], references: [id], onDelete: Cascade)
 
+  @@index([session_id]) // Performance: queries by session
+  @@index([status]) // Performance: filter by status
   @@map("permission_requests")
 }
+
