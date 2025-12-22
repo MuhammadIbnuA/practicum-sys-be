@@ -1,0 +1,271 @@
+// Prisma Schema for University Practicum Attendance Management System
+// ===================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// =============================================================================
+// ENUMS
+// =============================================================================
+
+enum AttendanceStatus {
+  PENDING     // Submitted by student, awaiting approval
+  HADIR       // Approved present
+  ALPHA       // Absent without permission
+  IZIN_SAKIT
+  IZIN_LAIN
+  IZIN_KAMPUS
+  REJECTED    // Submission rejected
+}
+
+enum SessionType {
+  REGULAR
+  EXAM
+}
+
+enum PermissionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+// =============================================================================
+// USER MODEL
+// =============================================================================
+
+model User {
+  id         Int      @id @default(autoincrement())
+  email      String   @unique
+  password   String
+  name       String
+  is_admin   Boolean  @default(false)
+  created_at DateTime @default(now())
+
+  // Relations - User can be both student and assistant
+  enrollments          Enrollment[]
+  classAssistants      ClassAssistant[]
+  assistantAttendances AssistantAttendance[]
+  permissionRequests   PermissionRequest[]
+  approvedAttendances  StudentAttendance[]   @relation("ApprovedBy")
+
+  @@map("users")
+}
+
+// =============================================================================
+// SEMESTER MODEL
+// =============================================================================
+
+model Semester {
+  id        Int      @id @default(autoincrement())
+  name      String   // e.g., "Ganjil 2024"
+  is_active Boolean  @default(false)
+
+  // Relations
+  classes Class[]
+
+  @@map("semesters")
+}
+
+// =============================================================================
+// COURSE MODEL (Mata Kuliah)
+// =============================================================================
+
+model Course {
+  id   Int    @id @default(autoincrement())
+  code String @unique
+  name String
+
+  // Relations
+  classes Class[]
+
+  @@map("courses")
+}
+
+// =============================================================================
+// TIME SLOT MODEL (Jadwal Besar - Fixed Time Slots)
+// =============================================================================
+
+model TimeSlot {
+  id          Int    @id @default(autoincrement())
+  slot_number Int    @unique  // 1-6
+  start_time  String          // "07:00"
+  end_time    String          // "08:40"
+  label       String          // "Sesi 1 (07:00-08:40)"
+
+  // Relations
+  classes Class[]
+
+  @@map("time_slots")
+}
+
+// =============================================================================
+// ROOM MODEL (Lab Rooms)
+// =============================================================================
+
+model Room {
+  id   Int    @id @default(autoincrement())
+  code String @unique  // "PSI", "SBTI"
+  name String          // "Laboratorium PSI"
+
+  // Relations
+  classes Class[]
+
+  @@map("rooms")
+}
+
+// =============================================================================
+// CLASS MODEL (Kelas Praktikum)
+// =============================================================================
+
+model Class {
+  id           Int @id @default(autoincrement())
+  course_id    Int
+  semester_id  Int
+  name         String // e.g., "Kelas A"
+  quota        Int
+  day_of_week  Int    // 1=Monday, 2=Tuesday, ..., 5=Friday
+  time_slot_id Int
+  room_id      Int
+
+  // Relations
+  course     Course     @relation(fields: [course_id], references: [id], onDelete: Cascade)
+  semester   Semester   @relation(fields: [semester_id], references: [id], onDelete: Cascade)
+  time_slot  TimeSlot   @relation(fields: [time_slot_id], references: [id], onDelete: Cascade)
+  room       Room       @relation(fields: [room_id], references: [id], onDelete: Cascade)
+  sessions   ClassSession[]
+  enrollments Enrollment[]
+  assistants  ClassAssistant[]
+
+  @@unique([course_id, semester_id, name])
+  @@unique([semester_id, day_of_week, time_slot_id, room_id]) // Prevent schedule conflicts
+  @@map("classes")
+}
+
+// =============================================================================
+// CLASS ASSISTANT (Junction Table - Teaching Staff)
+// =============================================================================
+
+model ClassAssistant {
+  class_id Int
+  user_id  Int
+
+  // Relations
+  class Class @relation(fields: [class_id], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@id([class_id, user_id])
+  @@map("class_assistants")
+}
+
+// =============================================================================
+// CLASS SESSION MODEL
+// =============================================================================
+
+model ClassSession {
+  id             Int         @id @default(autoincrement())
+  class_id       Int
+  session_number Int         // 1-11
+  date           DateTime?
+  topic          String?
+  type           SessionType @default(REGULAR)
+
+  // Relations
+  class               Class                 @relation(fields: [class_id], references: [id], onDelete: Cascade)
+  studentAttendances  StudentAttendance[]
+  assistantAttendances AssistantAttendance[]
+  permissionRequests  PermissionRequest[]
+
+  @@unique([class_id, session_number])
+  @@map("class_sessions")
+}
+
+// =============================================================================
+// ENROLLMENT (Junction Table - Students)
+// =============================================================================
+
+model Enrollment {
+  class_id    Int
+  user_id     Int
+  enrolled_at DateTime @default(now())
+
+  // Relations
+  class      Class               @relation(fields: [class_id], references: [id], onDelete: Cascade)
+  user       User                @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  attendances StudentAttendance[]
+
+  @@id([class_id, user_id])
+  @@map("enrollments")
+}
+
+// =============================================================================
+// STUDENT ATTENDANCE MODEL (with submission workflow)
+// =============================================================================
+
+model StudentAttendance {
+  id                   Int              @id @default(autoincrement())
+  enrollment_class_id  Int
+  enrollment_user_id   Int
+  session_id           Int
+  status               AttendanceStatus @default(ALPHA)
+  grade                Float?
+  proof_file_url       String?
+  
+  // Submission workflow
+  submitted_at         DateTime?        // When student submitted
+  approved_by_id       Int?             // Assistant who approved
+  approved_at          DateTime?        // When approved
+
+  // Relations
+  enrollment Enrollment   @relation(fields: [enrollment_class_id, enrollment_user_id], references: [class_id, user_id], onDelete: Cascade)
+  session    ClassSession @relation(fields: [session_id], references: [id], onDelete: Cascade)
+  approved_by User?       @relation("ApprovedBy", fields: [approved_by_id], references: [id])
+
+  @@unique([enrollment_class_id, enrollment_user_id, session_id])
+  @@map("student_attendances")
+}
+
+// =============================================================================
+// ASSISTANT ATTENDANCE MODEL
+// =============================================================================
+
+model AssistantAttendance {
+  id            Int       @id @default(autoincrement())
+  user_id       Int
+  session_id    Int
+  check_in_time DateTime  @default(now())
+  status        AttendanceStatus @default(HADIR)
+
+  // Relations
+  user    User         @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  session ClassSession @relation(fields: [session_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, session_id])
+  @@map("assistant_attendances")
+}
+
+// =============================================================================
+// PERMISSION REQUEST MODEL
+// =============================================================================
+
+model PermissionRequest {
+  id         Int              @id @default(autoincrement())
+  student_id Int
+  session_id Int
+  file_url   String
+  reason     String
+  status     PermissionStatus @default(PENDING)
+  created_at DateTime         @default(now())
+  updated_at DateTime         @updatedAt
+
+  // Relations
+  student User         @relation(fields: [student_id], references: [id], onDelete: Cascade)
+  session ClassSession @relation(fields: [session_id], references: [id], onDelete: Cascade)
+
+  @@map("permission_requests")
+}
