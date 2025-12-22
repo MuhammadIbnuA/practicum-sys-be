@@ -908,39 +908,6 @@ export const updateAttendanceStatus = async (req, res) => {
     }
 };
 
-export default {
-    // Time Slots & Rooms
-    getTimeSlots,
-    getRooms,
-    createRoom,
-    getMasterSchedule,
-    // Semesters
-    getSemesters,
-    createSemester,
-    activateSemester,
-    // Courses
-    getCourses,
-    createCourse,
-    // Classes
-    getClassesBySemester,
-    getAllClasses,
-    createClass,
-    updateClass,
-    // Assistants
-    assignAssistant,
-    removeAssistant,
-    // Permissions
-    getPermissions,
-    approvePermission,
-    rejectPermission,
-    // Assistant Logs
-    getAssistantLogs,
-    validateAssistant,
-    // Attendance
-    updateAttendanceStatus,
-    getAssistantCheckInRecap
-};
-
 // =============================================================================
 // ASSISTANT CHECK-IN RECAP (Admin view of all assistant attendance)
 // =============================================================================
@@ -1031,5 +998,39 @@ export const getAssistantCheckInRecap = async (req, res) => {
         return apiResponse.error(res, 'Internal server error.', 500);
     }
 };
+
+export default {
+    // Time Slots & Rooms
+    getTimeSlots,
+    getRooms,
+    createRoom,
+    getMasterSchedule,
+    // Semesters
+    getSemesters,
+    createSemester,
+    activateSemester,
+    // Courses
+    getCourses,
+    createCourse,
+    // Classes
+    getClassesBySemester,
+    getAllClasses,
+    createClass,
+    updateClass,
+    // Assistants
+    assignAssistant,
+    removeAssistant,
+    // Permissions
+    getPermissions,
+    approvePermission,
+    rejectPermission,
+    // Assistant Logs
+    getAssistantLogs,
+    validateAssistant,
+    // Attendance
+    updateAttendanceStatus,
+    getAssistantCheckInRecap
+};
+
 
 
