@@ -799,6 +799,109 @@ export const validateAssistant = async (req, res) => {
     }
 };
 
+// =============================================================================
+// GET ALL CLASSES (for admin panel)
+// =============================================================================
+
+/**
+ * Get all classes with details
+ * GET /api/admin/classes
+ */
+export const getAllClasses = async (req, res) => {
+    try {
+        const classes = await prisma.class.findMany({
+            include: {
+                course: true,
+                semester: true,
+                time_slot: true,
+                room: true,
+                assistants: {
+                    include: {
+                        user: { select: { id: true, name: true, email: true } }
+                    }
+                },
+                _count: { select: { enrollments: true } }
+            },
+            orderBy: [{ semester_id: 'desc' }, { course_id: 'asc' }, { name: 'asc' }]
+        });
+
+        const result = classes.map(c => ({
+            ...c,
+            day_name: DAY_NAMES[c.day_of_week],
+            enrolled_count: c._count.enrollments
+        }));
+
+        return apiResponse.success(res, result, 'All classes retrieved.');
+    } catch (error) {
+        console.error('Get all classes error:', error);
+        return apiResponse.error(res, 'Internal server error.', 500);
+    }
+};
+
+// =============================================================================
+// ADMIN UPDATE ATTENDANCE (for recap grid)
+// =============================================================================
+
+/**
+ * Admin update attendance status
+ * PUT /api/admin/sessions/:sessionId/attendance
+ */
+export const updateAttendanceStatus = async (req, res) => {
+    try {
+        const { sessionId } = req.params;
+        const { updates } = req.body; // [{ studentId, status }]
+
+        if (!updates || !Array.isArray(updates)) {
+            return apiResponse.error(res, 'Updates array is required.', 400);
+        }
+
+        const session = await prisma.classSession.findUnique({
+            where: { id: parseInt(sessionId) },
+            include: { class: true }
+        });
+
+        if (!session) {
+            return apiResponse.error(res, 'Session not found.', 404);
+        }
+
+        // Get enrollment IDs
+        const enrollments = await prisma.enrollment.findMany({
+            where: { class_id: session.class_id },
+            select: { id: true, user_id: true }
+        });
+
+        const userToEnrollment = new Map(enrollments.map(e => [e.user_id, e.id]));
+
+        let updated = 0;
+        for (const { studentId, status } of updates) {
+            const enrollmentId = userToEnrollment.get(studentId);
+            if (!enrollmentId) continue;
+
+            await prisma.studentAttendance.upsert({
+                where: {
+                    enrollment_id_session_id: {
+                        enrollment_id: enrollmentId,
+                        session_id: parseInt(sessionId)
+                    }
+                },
+                update: { status },
+                create: {
+                    enrollment_id: enrollmentId,
+                    session_id: parseInt(sessionId),
+                    status,
+                    submitted_at: new Date()
+                }
+            });
+            updated++;
+        }
+
+        return apiResponse.success(res, { updated }, `${updated} attendance records updated.`);
+    } catch (error) {
+        console.error('Update attendance status error:', error);
+        return apiResponse.error(res, 'Internal server error.', 500);
+    }
+};
+
 export default {
     // Time Slots & Rooms
     getTimeSlots,
@@ -814,6 +917,7 @@ export default {
     createCourse,
     // Classes
     getClassesBySemester,
+    getAllClasses,
     createClass,
     updateClass,
     // Assistants
@@ -825,5 +929,8 @@ export default {
     rejectPermission,
     // Assistant Logs
     getAssistantLogs,
-    validateAssistant
+    validateAssistant,
+    // Attendance
+    updateAttendanceStatus
 };
+

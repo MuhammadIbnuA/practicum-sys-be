@@ -22,6 +22,7 @@ import {
     createCourse,
     // Class
     getClassesBySemester,
+    getAllClasses,
     createClass,
     updateClass,
     // Assistant
@@ -33,7 +34,9 @@ import {
     rejectPermission,
     // Assistant Logs
     getAssistantLogs,
-    validateAssistant
+    validateAssistant,
+    // Attendance
+    updateAttendanceStatus
 } from '../controllers/adminController.js';
 
 const router = Router();
@@ -203,4 +206,27 @@ router.get('/assistants/log', getAssistantLogs);
  */
 router.post('/assistants/validate', validateAssistant);
 
+// =============================================================================
+// CLASS LIST (All classes for admin)
+// =============================================================================
+
+/**
+ * @route   GET /api/admin/classes
+ * @desc    Get all classes
+ * @access  Admin
+ */
+router.get('/classes', getAllClasses);
+
+// =============================================================================
+// ATTENDANCE MANAGEMENT (Admin can update any attendance)
+// =============================================================================
+
+/**
+ * @route   PUT /api/admin/sessions/:sessionId/attendance
+ * @desc    Admin update attendance status
+ * @access  Admin
+ */
+router.put('/sessions/:sessionId/attendance', updateAttendanceStatus);
+
 export default router;
+
