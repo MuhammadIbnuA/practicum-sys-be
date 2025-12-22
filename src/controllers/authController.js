@@ -3,12 +3,10 @@
  * Handles user registration and login
  */
 
-import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { apiResponse } from '../utils/helpers.js';
-
-const prisma = new PrismaClient();
+import prisma from '../lib/prisma.js';
 
 /**
  * Register a new user

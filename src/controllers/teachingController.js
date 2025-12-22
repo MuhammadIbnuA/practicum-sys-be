@@ -3,10 +3,8 @@
  * Handles assistant schedule, check-in, attendance approval, and student management
  */
 
-import { PrismaClient } from '@prisma/client';
+import prisma from '../lib/prisma.js';
 import { apiResponse } from '../utils/helpers.js';
-
-const prisma = new PrismaClient();
 
 // Day names for display
 const DAY_NAMES = { 1: 'Senin', 2: 'Selasa', 3: 'Rabu', 4: 'Kamis', 5: 'Jumat' };

@@ -3,9 +3,7 @@
  * Verifies admin status and assistant context for teaching routes
  */
 
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import prisma from '../lib/prisma.js';
 
 /**
  * Verify Admin middleware

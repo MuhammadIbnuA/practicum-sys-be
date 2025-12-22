@@ -3,10 +3,8 @@
  * Handles all admin operations: semesters, courses, classes, rooms, schedule, permissions
  */
 
-import { PrismaClient } from '@prisma/client';
+import prisma from '../lib/prisma.js';
 import { apiResponse, mapReasonToStatus } from '../utils/helpers.js';
-
-const prisma = new PrismaClient();
 
 // Day names for display
 const DAY_NAMES = {

@@ -4,9 +4,7 @@
  */
 
 import jwt from 'jsonwebtoken';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import prisma from '../lib/prisma.js';
 
 /**
  * Verify JWT token middleware
@@ -17,7 +15,7 @@ export const verifyToken = async (req, res, next) => {
   try {
     // Get token from header
     const authHeader = req.headers.authorization;
-    
+
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return res.status(401).json({
         success: false,
@@ -64,7 +62,7 @@ export const verifyToken = async (req, res, next) => {
         message: 'Token expired.'
       });
     }
-    
+
     console.error('Auth middleware error:', error);
     return res.status(500).json({
       success: false,
