@@ -707,30 +707,32 @@ export const finalizeSession = async (req, res) => {
             return apiResponse.error(res, 'You are not assigned as assistant for this class.', 403);
         }
 
-        // Get all enrolled students
+        // Get all enrolled students (using composite key)
         const enrollments = await prisma.enrollment.findMany({
             where: { class_id: session.class_id },
-            select: { user_id: true, id: true }
+            select: { class_id: true, user_id: true }
         });
 
         // Get existing attendance records for this session
         const existingAttendances = await prisma.studentAttendance.findMany({
             where: { session_id: parseInt(sessionId) },
-            select: { enrollment_id: true }
+            select: { enrollment_class_id: true, enrollment_user_id: true }
         });
 
-        const enrollmentIdsWithAttendance = new Set(existingAttendances.map(a => a.enrollment_id));
+        // Create set of existing attendance user_ids
+        const usersWithAttendance = new Set(existingAttendances.map(a => a.enrollment_user_id));
 
         // Find enrollments without attendance
         const enrollmentsWithoutAttendance = enrollments.filter(
-            e => !enrollmentIdsWithAttendance.has(e.id)
+            e => !usersWithAttendance.has(e.user_id)
         );
 
         // Create ALPHA records for students without attendance
         if (enrollmentsWithoutAttendance.length > 0) {
             await prisma.studentAttendance.createMany({
                 data: enrollmentsWithoutAttendance.map(e => ({
-                    enrollment_id: e.id,
+                    enrollment_class_id: e.class_id,
+                    enrollment_user_id: e.user_id,
                     session_id: parseInt(sessionId),
                     status: 'ALPHA',
                     submitted_at: new Date()
