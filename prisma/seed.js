@@ -1,5 +1,7 @@
-// Comprehensive Seed Script with Full Dummy Data
-// Run with: npx prisma db seed
+/**
+ * Comprehensive Seed Script
+ * Creates: 1 admin, 30 students, 10 classes, 3 assistants per class, 10 students per class
+ */
 
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcrypt';
@@ -7,322 +9,259 @@ import bcrypt from 'bcrypt';
 const prisma = new PrismaClient();
 
 async function main() {
-    console.log('🌱 Seeding database with full dummy data...\n');
+    console.log('🌱 Seeding database with comprehensive data...\n');
 
-    // ==========================================================================
-    // 1. SEED TIME SLOTS (6 fixed)
-    // ==========================================================================
-    const timeSlots = [
-        { slot_number: 1, start_time: '07:00', end_time: '08:40', label: 'Sesi 1 (07:00-08:40)' },
-        { slot_number: 2, start_time: '08:45', end_time: '10:25', label: 'Sesi 2 (08:45-10:25)' },
-        { slot_number: 3, start_time: '10:30', end_time: '12:10', label: 'Sesi 3 (10:30-12:10)' },
-        { slot_number: 4, start_time: '12:30', end_time: '14:10', label: 'Sesi 4 (12:30-14:10)' },
-        { slot_number: 5, start_time: '14:15', end_time: '16:05', label: 'Sesi 5 (14:15-16:05)' },
-        { slot_number: 6, start_time: '16:10', end_time: '17:40', label: 'Sesi 6 (16:10-17:40)' },
-    ];
+    // Clean database
+    await prisma.studentAttendance.deleteMany();
+    await prisma.assistantAttendance.deleteMany();
+    await prisma.permissionRequest.deleteMany();
+    await prisma.classAssistant.deleteMany();
+    await prisma.enrollment.deleteMany();
+    await prisma.classSession.deleteMany();
+    await prisma.class.deleteMany();
+    await prisma.course.deleteMany();
+    await prisma.semester.deleteMany();
+    await prisma.room.deleteMany();
+    await prisma.timeSlot.deleteMany();
+    await prisma.user.deleteMany();
 
-    for (const slot of timeSlots) {
-        await prisma.timeSlot.upsert({
-            where: { slot_number: slot.slot_number },
-            update: slot,
-            create: slot,
-        });
-    }
-    console.log('✓ Time slots seeded (6)');
+    // =========================================================================
+    // 1. TIME SLOTS (6 slots per day)
+    // =========================================================================
+    const timeSlots = await Promise.all([
+        prisma.timeSlot.create({ data: { slot_number: 1, start_time: '07:00', end_time: '08:40', label: 'Sesi 1 (07:00-08:40)' } }),
+        prisma.timeSlot.create({ data: { slot_number: 2, start_time: '08:50', end_time: '10:30', label: 'Sesi 2 (08:50-10:30)' } }),
+        prisma.timeSlot.create({ data: { slot_number: 3, start_time: '10:40', end_time: '12:20', label: 'Sesi 3 (10:40-12:20)' } }),
+        prisma.timeSlot.create({ data: { slot_number: 4, start_time: '13:00', end_time: '14:40', label: 'Sesi 4 (13:00-14:40)' } }),
+        prisma.timeSlot.create({ data: { slot_number: 5, start_time: '14:50', end_time: '16:30', label: 'Sesi 5 (14:50-16:30)' } }),
+        prisma.timeSlot.create({ data: { slot_number: 6, start_time: '16:40', end_time: '18:20', label: 'Sesi 6 (16:40-18:20)' } }),
+    ]);
+    console.log('✓ Time Slots created (6)');
 
-    // ==========================================================================
-    // 2. SEED ROOMS (2 labs)
-    // ==========================================================================
-    const rooms = [
-        { code: 'PSI', name: 'Laboratorium PSI' },
-        { code: 'SBTI', name: 'Laboratorium SBTI' },
-    ];
+    // =========================================================================
+    // 2. ROOMS (3 labs)
+    // =========================================================================
+    const rooms = await Promise.all([
+        prisma.room.create({ data: { code: 'LAB-A', name: 'Laboratorium A' } }),
+        prisma.room.create({ data: { code: 'LAB-B', name: 'Laboratorium B' } }),
+        prisma.room.create({ data: { code: 'LAB-C', name: 'Laboratorium C' } }),
+    ]);
+    console.log('✓ Rooms created (3)');
 
-    for (const room of rooms) {
-        await prisma.room.upsert({
-            where: { code: room.code },
-            update: room,
-            create: room,
-        });
-    }
-    console.log('✓ Rooms seeded (2)');
+    // =========================================================================
+    // 3. SEMESTER
+    // =========================================================================
+    const semester = await prisma.semester.create({
+        data: { name: 'Ganjil 2024/2025', is_active: true }
+    });
+    console.log('✓ Semester created');
 
-    // ==========================================================================
-    // 3. SEED USERS (Admin + Assistants + Students)
-    // ==========================================================================
-    const password = await bcrypt.hash('password123', 10);
+    // =========================================================================
+    // 4. COURSES (5 courses)
+    // =========================================================================
+    const courses = await Promise.all([
+        prisma.course.create({ data: { code: 'IF101', name: 'Pemrograman Dasar' } }),
+        prisma.course.create({ data: { code: 'IF201', name: 'Struktur Data' } }),
+        prisma.course.create({ data: { code: 'IF301', name: 'Basis Data' } }),
+        prisma.course.create({ data: { code: 'IF401', name: 'Jaringan Komputer' } }),
+        prisma.course.create({ data: { code: 'IF501', name: 'Keamanan Sistem' } }),
+    ]);
+    console.log('✓ Courses created (5)');
+
+    // =========================================================================
+    // 5. USERS - Admin
+    // =========================================================================
+    const hashedPassword = await bcrypt.hash('password123', 10);
     const adminPassword = await bcrypt.hash('admin123', 10);
 
-    // Admin
-    const admin = await prisma.user.upsert({
-        where: { email: 'admin@practicum.com' },
-        update: {},
-        create: {
+    const admin = await prisma.user.create({
+        data: {
             email: 'admin@practicum.com',
             password: adminPassword,
-            name: 'System Admin',
-            is_admin: true,
-        },
+            name: 'Administrator',
+            is_admin: true
+        }
     });
-    console.log('✓ Admin seeded:', admin.email);
+    console.log('✓ Admin created');
 
-    // Assistants (3)
-    const assistantData = [
-        { email: 'asst1@practicum.com', name: 'Budi Santoso' },
-        { email: 'asst2@practicum.com', name: 'Siti Rahayu' },
-        { email: 'asst3@practicum.com', name: 'Ahmad Wijaya' },
+    // =========================================================================
+    // 6. USERS - Students (30 students)
+    // =========================================================================
+    const studentNames = [
+        'Ahmad Rizki', 'Budi Santoso', 'Citra Dewi', 'Dian Kusuma', 'Eko Prasetyo',
+        'Fitri Handayani', 'Gunawan Putra', 'Hana Salsabila', 'Irfan Hakim', 'Joko Widodo',
+        'Kartika Putri', 'Lukman Arif', 'Maya Anggraeni', 'Nanda Pratama', 'Oscar Hariadi',
+        'Putri Ayu', 'Qori Ramadhan', 'Rizal Fahmi', 'Siti Nurhaliza', 'Taufik Ibrahim',
+        'Umi Kalsum', 'Vina Melati', 'Wahyu Setiawan', 'Xena Olivia', 'Yusuf Maulana',
+        'Zahra Aulia', 'Anisa Rahma', 'Bagas Pramono', 'Cindy Permata', 'Deni Kurniawan'
     ];
 
-    const assistants = [];
-    for (const a of assistantData) {
-        const user = await prisma.user.upsert({
-            where: { email: a.email },
-            update: {},
-            create: { ...a, password, is_admin: false },
-        });
-        assistants.push(user);
-    }
-    console.log('✓ Assistants seeded (3)');
+    const students = await Promise.all(
+        studentNames.map((name, i) =>
+            prisma.user.create({
+                data: {
+                    email: `student${i + 1}@student.com`,
+                    password: hashedPassword,
+                    name,
+                    is_admin: false
+                }
+            })
+        )
+    );
+    console.log('✓ Students created (30)');
 
-    // Students (5)
-    const studentData = [
-        { email: 'student1@student.com', name: 'Andi Pratama' },
-        { email: 'student2@student.com', name: 'Dewi Lestari' },
-        { email: 'student3@student.com', name: 'Rizki Maulana' },
-        { email: 'student4@student.com', name: 'Putri Ayu' },
-        { email: 'student5@student.com', name: 'Fajar Hidayat' },
-    ];
-
-    const students = [];
-    for (const s of studentData) {
-        const user = await prisma.user.upsert({
-            where: { email: s.email },
-            update: {},
-            create: { ...s, password, is_admin: false },
-        });
-        students.push(user);
-    }
-    console.log('✓ Students seeded (5)');
-
-    // ==========================================================================
-    // 4. SEED SEMESTER
-    // ==========================================================================
-    const semester = await prisma.semester.upsert({
-        where: { id: 1 },
-        update: { is_active: true },
-        create: { name: 'Ganjil 2024/2025', is_active: true },
-    });
-    console.log('✓ Semester seeded:', semester.name);
-
-    // ==========================================================================
-    // 5. SEED COURSES (3)
-    // ==========================================================================
-    const courseData = [
-        { code: 'IF101', name: 'Dasar Pemrograman' },
-        { code: 'IF201', name: 'Struktur Data' },
-        { code: 'IF301', name: 'Basis Data' },
-    ];
-
-    const courses = [];
-    for (const c of courseData) {
-        const course = await prisma.course.upsert({
-            where: { code: c.code },
-            update: c,
-            create: c,
-        });
-        courses.push(course);
-    }
-    console.log('✓ Courses seeded (3)');
-
-    // ==========================================================================
-    // 6. SEED CLASSES (4 classes with different schedules)
-    // ==========================================================================
-    const fetchedSlots = await prisma.timeSlot.findMany();
-    const fetchedRooms = await prisma.room.findMany();
-
-    const classData = [
-        { course_id: courses[0].id, name: 'Kelas A', quota: 30, day_of_week: 1, time_slot_id: fetchedSlots[0].id, room_id: fetchedRooms[0].id },
-        { course_id: courses[0].id, name: 'Kelas B', quota: 30, day_of_week: 1, time_slot_id: fetchedSlots[0].id, room_id: fetchedRooms[1].id },
-        { course_id: courses[1].id, name: 'Kelas A', quota: 25, day_of_week: 2, time_slot_id: fetchedSlots[1].id, room_id: fetchedRooms[0].id },
-        { course_id: courses[2].id, name: 'Kelas A', quota: 25, day_of_week: 3, time_slot_id: fetchedSlots[2].id, room_id: fetchedRooms[1].id },
+    // =========================================================================
+    // 7. CLASSES (10 classes with unique schedules)
+    // =========================================================================
+    const classConfigs = [
+        { course: 0, name: 'A', day: 1, slot: 0, room: 0 },
+        { course: 0, name: 'B', day: 1, slot: 1, room: 0 },
+        { course: 1, name: 'A', day: 1, slot: 2, room: 0 },
+        { course: 1, name: 'B', day: 2, slot: 0, room: 0 },
+        { course: 2, name: 'A', day: 2, slot: 1, room: 1 },
+        { course: 2, name: 'B', day: 2, slot: 2, room: 1 },
+        { course: 3, name: 'A', day: 3, slot: 0, room: 1 },
+        { course: 3, name: 'B', day: 3, slot: 1, room: 2 },
+        { course: 4, name: 'A', day: 4, slot: 0, room: 2 },
+        { course: 4, name: 'B', day: 4, slot: 1, room: 2 },
     ];
 
     const classes = [];
-    for (const c of classData) {
-        // Check if class exists
-        const existing = await prisma.class.findFirst({
-            where: { course_id: c.course_id, semester_id: semester.id, name: c.name }
+    for (const config of classConfigs) {
+        const newClass = await prisma.class.create({
+            data: {
+                course_id: courses[config.course].id,
+                semester_id: semester.id,
+                name: `Kelas ${config.name}`,
+                quota: 15,
+                day_of_week: config.day,
+                time_slot_id: timeSlots[config.slot].id,
+                room_id: rooms[config.room].id
+            }
         });
+        classes.push(newClass);
+    }
+    console.log('✓ Classes created (10)');
 
-        if (existing) {
-            classes.push(existing);
-            continue;
-        }
-
-        const cls = await prisma.class.create({
-            data: { ...c, semester_id: semester.id },
-        });
-
-        // Create 11 sessions
+    // =========================================================================
+    // 8. SESSIONS (11 sessions per class = 110 sessions)
+    // =========================================================================
+    for (const cls of classes) {
+        const sessions = [];
         for (let i = 1; i <= 11; i++) {
-            await prisma.classSession.create({
+            sessions.push({
+                class_id: cls.id,
+                session_number: i,
+                topic: i === 11 ? 'Responsi' : `Pertemuan ${i}: Materi ${i}`,
+                type: i === 11 ? 'EXAM' : 'REGULAR'
+            });
+        }
+        await prisma.classSession.createMany({ data: sessions });
+    }
+    console.log('✓ Sessions created (110)');
+
+    // =========================================================================
+    // 9. CLASS ASSISTANTS (3 per class from student pool)
+    // =========================================================================
+    // First 15 students can be assistants to various classes
+    const assistantPool = students.slice(0, 15);
+
+    for (let i = 0; i < classes.length; i++) {
+        // Assign 3 different assistants to each class (rotating through pool)
+        const assistants = [
+            assistantPool[(i * 3) % assistantPool.length],
+            assistantPool[(i * 3 + 1) % assistantPool.length],
+            assistantPool[(i * 3 + 2) % assistantPool.length],
+        ];
+
+        for (const asst of assistants) {
+            await prisma.classAssistant.create({
                 data: {
-                    class_id: cls.id,
-                    session_number: i,
-                    topic: i === 11 ? 'Responsi' : `Pertemuan ${i}`,
-                    type: i === 11 ? 'EXAM' : 'REGULAR',
-                },
+                    class_id: classes[i].id,
+                    user_id: asst.id
+                }
             });
         }
-        classes.push(cls);
     }
-    console.log('✓ Classes seeded (4) with 11 sessions each');
+    console.log('✓ Class Assistants assigned (30 assignments)');
 
-    // ==========================================================================
-    // 7. ASSIGN ASSISTANTS TO CLASSES
-    // ==========================================================================
-    const assignments = [
-        { class_id: classes[0].id, user_id: assistants[0].id },
-        { class_id: classes[0].id, user_id: assistants[1].id },
-        { class_id: classes[1].id, user_id: assistants[1].id },
-        { class_id: classes[2].id, user_id: assistants[2].id },
-        { class_id: classes[3].id, user_id: assistants[0].id },
-    ];
+    // =========================================================================
+    // 10. ENROLLMENTS (10 students per class)
+    // =========================================================================
+    // Distribute students across classes (students 10-30 are enrolled)
+    const enrollableStudents = students.slice(10); // Last 20 students
 
-    for (const a of assignments) {
-        await prisma.classAssistant.upsert({
-            where: { class_id_user_id: { class_id: a.class_id, user_id: a.user_id } },
-            update: {},
-            create: a,
+    for (let i = 0; i < classes.length; i++) {
+        // Each class gets a mix of students
+        const startIdx = (i * 3) % enrollableStudents.length;
+        const classStudents = [];
+        for (let j = 0; j < 10; j++) {
+            classStudents.push(enrollableStudents[(startIdx + j) % enrollableStudents.length]);
+        }
+
+        for (const student of classStudents) {
+            try {
+                await prisma.enrollment.create({
+                    data: {
+                        class_id: classes[i].id,
+                        user_id: student.id
+                    }
+                });
+            } catch (e) {
+                // Skip duplicate enrollments
+            }
+        }
+    }
+    console.log('✓ Enrollments created (~100)');
+
+    // =========================================================================
+    // 11. ATTENDANCE RECORDS (random sample for first 3 sessions)
+    // =========================================================================
+    const statuses = ['HADIR', 'HADIR', 'HADIR', 'HADIR', 'ALPHA', 'PENDING', 'IZIN_SAKIT'];
+
+    for (const cls of classes) {
+        const sessions = await prisma.classSession.findMany({
+            where: { class_id: cls.id, session_number: { lte: 3 } }
         });
-    }
-    console.log('✓ Assistants assigned to classes');
 
-    // ==========================================================================
-    // 8. ENROLL STUDENTS IN CLASSES
-    // ==========================================================================
-    // Students 1-3 in Class 1, Student 4-5 in Class 2
-    const enrollments = [
-        { class_id: classes[0].id, user_id: students[0].id },
-        { class_id: classes[0].id, user_id: students[1].id },
-        { class_id: classes[0].id, user_id: students[2].id },
-        { class_id: classes[1].id, user_id: students[3].id },
-        { class_id: classes[1].id, user_id: students[4].id },
-        { class_id: classes[2].id, user_id: students[0].id },
-        { class_id: classes[2].id, user_id: students[1].id },
-    ];
-
-    for (const e of enrollments) {
-        await prisma.enrollment.upsert({
-            where: { class_id_user_id: { class_id: e.class_id, user_id: e.user_id } },
-            update: {},
-            create: e,
+        const enrollments = await prisma.enrollment.findMany({
+            where: { class_id: cls.id }
         });
-    }
-    console.log('✓ Students enrolled in classes');
 
-    // ==========================================================================
-    // 9. CREATE ATTENDANCE RECORDS (some with various statuses)
-    // ==========================================================================
-    const sessions = await prisma.classSession.findMany({
-        where: { class_id: classes[0].id },
-        orderBy: { session_number: 'asc' },
-        take: 4,
-    });
-
-    // Create attendance for first 3 sessions for enrolled students
-    for (let i = 0; i < 3; i++) {
-        const session = sessions[i];
-        for (let j = 0; j < 3; j++) {
-            const student = students[j];
-            const statuses = ['HADIR', 'HADIR', 'ALPHA'];
-            const grades = [85 + j * 2, 90, null];
-
-            await prisma.studentAttendance.upsert({
-                where: {
-                    enrollment_class_id_enrollment_user_id_session_id: {
-                        enrollment_class_id: classes[0].id,
-                        enrollment_user_id: student.id,
+        for (const session of sessions) {
+            for (const enrollment of enrollments) {
+                const status = statuses[Math.floor(Math.random() * statuses.length)];
+                await prisma.studentAttendance.create({
+                    data: {
+                        enrollment_class_id: enrollment.class_id,
+                        enrollment_user_id: enrollment.user_id,
                         session_id: session.id,
-                    },
-                },
-                update: {},
-                create: {
-                    enrollment_class_id: classes[0].id,
-                    enrollment_user_id: student.id,
-                    session_id: session.id,
-                    status: statuses[i],
-                    grade: statuses[i] === 'HADIR' ? grades[j] : null,
-                    submitted_at: new Date(),
-                    approved_by_id: assistants[0].id,
-                    approved_at: new Date(),
-                },
-            });
+                        status,
+                        submitted_at: new Date(),
+                        grade: status === 'HADIR' ? Math.floor(Math.random() * 30) + 70 : null
+                    }
+                });
+            }
         }
     }
+    console.log('✓ Attendance records created (~300)');
 
-    // Create PENDING attendance for session 4
-    for (const student of [students[0], students[1]]) {
-        await prisma.studentAttendance.upsert({
-            where: {
-                enrollment_class_id_enrollment_user_id_session_id: {
-                    enrollment_class_id: classes[0].id,
-                    enrollment_user_id: student.id,
-                    session_id: sessions[3].id,
-                },
-            },
-            update: {},
-            create: {
-                enrollment_class_id: classes[0].id,
-                enrollment_user_id: student.id,
-                session_id: sessions[3].id,
-                status: 'PENDING',
-                submitted_at: new Date(),
-            },
-        });
-    }
-    console.log('✓ Attendance records created');
-
-    // ==========================================================================
-    // 10. CREATE ASSISTANT ATTENDANCE (check-ins)
-    // ==========================================================================
-    for (const session of sessions.slice(0, 3)) {
-        await prisma.assistantAttendance.upsert({
-            where: { user_id_session_id: { user_id: assistants[0].id, session_id: session.id } },
-            update: {},
-            create: {
-                user_id: assistants[0].id,
-                session_id: session.id,
-                status: 'HADIR',
-            },
-        });
-    }
-    console.log('✓ Assistant check-ins created');
-
-    // ==========================================================================
+    // =========================================================================
     // SUMMARY
-    // ==========================================================================
-    console.log('\n' + '='.repeat(50));
-    console.log('✅ DATABASE SEEDING COMPLETED!');
-    console.log('='.repeat(50));
-    console.log('\n📋 SEEDED DATA:');
-    console.log('   • 6 Time Slots');
-    console.log('   • 2 Rooms (PSI, SBTI)');
-    console.log('   • 1 Admin + 3 Assistants + 5 Students');
-    console.log('   • 1 Active Semester');
-    console.log('   • 3 Courses');
-    console.log('   • 4 Classes (11 sessions each)');
-    console.log('   • Enrollments & Attendance Records');
-    console.log('\n🔐 LOGIN CREDENTIALS:');
-    console.log('   Admin:     admin@practicum.com / admin123');
-    console.log('   Assistant: asst1@practicum.com / password123');
-    console.log('   Student:   student1@student.com / password123');
-    console.log('='.repeat(50));
+    // =========================================================================
+    console.log('\n======================================');
+    console.log('          SEEDING COMPLETE           ');
+    console.log('======================================');
+    console.log(`Admin:      admin@practicum.com / admin123`);
+    console.log(`Students:   student1@student.com to student30@student.com / password123`);
+    console.log(`Classes:    10 classes, 3 assistants each`);
+    console.log(`Enrollments: 10 students per class`);
+    console.log('======================================\n');
 }
 
 main()
     .catch((e) => {
-        console.error('❌ Seed error:', e);
+        console.error('Seed error:', e);
         process.exit(1);
     })
     .finally(async () => {

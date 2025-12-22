@@ -864,29 +864,35 @@ export const updateAttendanceStatus = async (req, res) => {
             return apiResponse.error(res, 'Session not found.', 404);
         }
 
-        // Get enrollment IDs
+        // Get enrollments (using composite key: class_id, user_id)
         const enrollments = await prisma.enrollment.findMany({
             where: { class_id: session.class_id },
-            select: { id: true, user_id: true }
+            select: { class_id: true, user_id: true }
         });
 
-        const userToEnrollment = new Map(enrollments.map(e => [e.user_id, e.id]));
+        // Map user_id to enrollment composite key
+        const userEnrollmentMap = new Map(
+            enrollments.map(e => [e.user_id, { class_id: e.class_id, user_id: e.user_id }])
+        );
 
         let updated = 0;
         for (const { studentId, status } of updates) {
-            const enrollmentId = userToEnrollment.get(studentId);
-            if (!enrollmentId) continue;
+            const enrollment = userEnrollmentMap.get(studentId);
+            if (!enrollment) continue;
 
+            // StudentAttendance uses enrollment_class_id, enrollment_user_id, session_id
             await prisma.studentAttendance.upsert({
                 where: {
-                    enrollment_id_session_id: {
-                        enrollment_id: enrollmentId,
+                    enrollment_class_id_enrollment_user_id_session_id: {
+                        enrollment_class_id: enrollment.class_id,
+                        enrollment_user_id: enrollment.user_id,
                         session_id: parseInt(sessionId)
                     }
                 },
                 update: { status },
                 create: {
-                    enrollment_id: enrollmentId,
+                    enrollment_class_id: enrollment.class_id,
+                    enrollment_user_id: enrollment.user_id,
                     session_id: parseInt(sessionId),
                     status,
                     submitted_at: new Date()
