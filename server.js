@@ -21,12 +21,16 @@ const PORT = process.env.PORT || 3000;
 // MIDDLEWARE
 // =============================================================================
 
-// Enable CORS for all origins (update in production)
+// Enable CORS for all origins
 app.use(cors({
-    origin: '*',
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
-    allowedHeaders: ['Content-Type', 'Authorization']
+    origin: true, // Allow all origins
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+    credentials: true
 }));
+
+// Handle preflight requests explicitly
+app.options('*', cors());
 
 // Parse JSON bodies
 app.use(express.json({ limit: '10mb' }));
