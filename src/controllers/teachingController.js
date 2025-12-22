@@ -665,6 +665,95 @@ export const getAttendanceRecap = async (req, res) => {
     }
 };
 
+// =============================================================================
+// FINALIZE SESSION (Rekap)
+// =============================================================================
+
+/**
+ * Finalize a session - mark all unmarked students as ALPHA
+ * POST /api/teaching/sessions/:sessionId/finalize
+ */
+export const finalizeSession = async (req, res) => {
+    try {
+        const { sessionId } = req.params;
+        const userId = req.user.id;
+
+        // Get session with class info
+        const session = await prisma.classSession.findUnique({
+            where: { id: parseInt(sessionId) },
+            include: { class: true }
+        });
+
+        if (!session) {
+            return apiResponse.error(res, 'Session not found.', 404);
+        }
+
+        // Check if already finalized
+        if (session.is_finalized) {
+            return apiResponse.error(res, 'Session already finalized.', 400);
+        }
+
+        // Check if user is assistant of this class
+        const assignment = await prisma.classAssistant.findUnique({
+            where: {
+                class_id_user_id: {
+                    class_id: session.class_id,
+                    user_id: userId
+                }
+            }
+        });
+
+        if (!assignment) {
+            return apiResponse.error(res, 'You are not assigned as assistant for this class.', 403);
+        }
+
+        // Get all enrolled students
+        const enrollments = await prisma.enrollment.findMany({
+            where: { class_id: session.class_id },
+            select: { user_id: true, id: true }
+        });
+
+        // Get existing attendance records for this session
+        const existingAttendances = await prisma.studentAttendance.findMany({
+            where: { session_id: parseInt(sessionId) },
+            select: { enrollment_id: true }
+        });
+
+        const enrollmentIdsWithAttendance = new Set(existingAttendances.map(a => a.enrollment_id));
+
+        // Find enrollments without attendance
+        const enrollmentsWithoutAttendance = enrollments.filter(
+            e => !enrollmentIdsWithAttendance.has(e.id)
+        );
+
+        // Create ALPHA records for students without attendance
+        if (enrollmentsWithoutAttendance.length > 0) {
+            await prisma.studentAttendance.createMany({
+                data: enrollmentsWithoutAttendance.map(e => ({
+                    enrollment_id: e.id,
+                    session_id: parseInt(sessionId),
+                    status: 'ALPHA',
+                    submitted_at: new Date()
+                }))
+            });
+        }
+
+        // Mark session as finalized
+        await prisma.classSession.update({
+            where: { id: parseInt(sessionId) },
+            data: { is_finalized: true }
+        });
+
+        return apiResponse.success(res, {
+            markedAlpha: enrollmentsWithoutAttendance.length,
+            totalStudents: enrollments.length
+        }, `Session finalized. ${enrollmentsWithoutAttendance.length} students marked as ALPHA.`);
+    } catch (error) {
+        console.error('Finalize session error:', error);
+        return apiResponse.error(res, 'Internal server error.', 500);
+    }
+};
+
 export default {
     getSchedule,
     checkIn,
@@ -674,6 +763,8 @@ export default {
     getSessionRoster,
     updateBatchAttendance,
     getClassSessions,
-    getAttendanceRecap
+    getAttendanceRecap,
+    finalizeSession
 };
+
 

@@ -16,7 +16,8 @@ import {
     getSessionRoster,
     updateBatchAttendance,
     getClassSessions,
-    getAttendanceRecap
+    getAttendanceRecap,
+    finalizeSession
 } from '../controllers/teachingController.js';
 
 const router = Router();
@@ -107,5 +108,17 @@ router.put('/sessions/:sessionId/update-batch', verifyAssistantForSession, updat
  */
 router.get('/classes/:classId/recap', getAttendanceRecap);
 
+// =============================================================================
+// FINALIZE SESSION (Rekap)
+// =============================================================================
+
+/**
+ * @route   POST /api/teaching/sessions/:sessionId/finalize
+ * @desc    Finalize session - mark unmarked students as ALPHA
+ * @access  Assistant of class
+ */
+router.post('/sessions/:sessionId/finalize', verifyAssistantForSession, finalizeSession);
+
 export default router;
+
 
