@@ -257,7 +257,8 @@ model PermissionRequest {
   id         Int              @id @default(autoincrement())
   student_id Int
   session_id Int
-  file_url   String
+  file_name  String           // Original filename
+  file_data  String           @db.Text // Base64 encoded file
   reason     String
   status     PermissionStatus @default(PENDING)
   created_at DateTime         @default(now())

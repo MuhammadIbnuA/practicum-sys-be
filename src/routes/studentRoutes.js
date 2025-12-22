@@ -6,7 +6,7 @@
 
 import { Router } from 'express';
 import { verifyToken } from '../middleware/authMiddleware.js';
-import { uploadPermissionLetter, handleUploadError } from '../middleware/uploadMiddleware.js';
+import { uploadPermissionLetter, convertToBase64, handleUploadError } from '../middleware/uploadMiddleware.js';
 import {
     getMySchedule,
     submitAttendance,
@@ -90,7 +90,7 @@ router.get('/my-classes/:classId/report', getClassReport);
  * @desc    Submit a permission request with file upload
  * @access  Authenticated
  */
-router.post('/permissions', uploadPermissionLetter, handleUploadError, submitPermission);
+router.post('/permissions', uploadPermissionLetter, convertToBase64, handleUploadError, submitPermission);
 
 /**
  * @route   GET /api/student/permissions

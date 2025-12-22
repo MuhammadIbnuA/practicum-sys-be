@@ -1,38 +1,12 @@
 /**
  * File Upload Middleware
- * Configures multer for permission letter uploads
+ * Uses memory storage for serverless deployment (stores as base64 in DB)
  */
 
 import multer from 'multer';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import fs from 'fs';
 
-// Get directory name for ES modules
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-// Ensure upload directory exists
-const uploadDir = path.join(__dirname, '../../uploads');
-if (!fs.existsSync(uploadDir)) {
-    fs.mkdirSync(uploadDir, { recursive: true });
-}
-
-// Configure storage
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        cb(null, uploadDir);
-    },
-    filename: (req, file, cb) => {
-        // Generate unique filename: timestamp-userId-originalname
-        const uniqueSuffix = `${Date.now()}-${req.user?.id || 'anon'}`;
-        const ext = path.extname(file.originalname);
-        const baseName = path.basename(file.originalname, ext)
-            .replace(/[^a-zA-Z0-9]/g, '_')
-            .substring(0, 50);
-        cb(null, `${uniqueSuffix}-${baseName}${ext}`);
-    }
-});
+// Configure memory storage (for serverless - no filesystem)
+const storage = multer.memoryStorage();
 
 // File filter - allow common document and image types
 const fileFilter = (req, file, cb) => {
@@ -52,12 +26,12 @@ const fileFilter = (req, file, cb) => {
     }
 };
 
-// Configure multer
+// Configure multer with memory storage
 const upload = multer({
     storage,
     fileFilter,
     limits: {
-        fileSize: parseInt(process.env.MAX_FILE_SIZE) || 5 * 1024 * 1024 // 5MB default
+        fileSize: 5 * 1024 * 1024 // 5MB max
     }
 });
 
@@ -65,6 +39,19 @@ const upload = multer({
  * Single file upload middleware for permission letters
  */
 export const uploadPermissionLetter = upload.single('file');
+
+/**
+ * Convert uploaded file to base64
+ * Call this after uploadPermissionLetter middleware
+ */
+export const convertToBase64 = (req, res, next) => {
+    if (req.file) {
+        // Convert buffer to base64
+        req.file.base64 = req.file.buffer.toString('base64');
+        req.file.dataUrl = `data:${req.file.mimetype};base64,${req.file.base64}`;
+    }
+    next();
+};
 
 /**
  * Error handler for multer errors
@@ -93,4 +80,4 @@ export const handleUploadError = (err, req, res, next) => {
     next();
 };
 
-export default { uploadPermissionLetter, handleUploadError };
+export default { uploadPermissionLetter, convertToBase64, handleUploadError };

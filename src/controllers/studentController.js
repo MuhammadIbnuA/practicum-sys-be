@@ -514,7 +514,8 @@ export const submitPermission = async (req, res) => {
             data: {
                 student_id: userId,
                 session_id: parseInt(session_id),
-                file_url: `/uploads/${req.file.filename}`,
+                file_name: req.file.originalname,
+                file_data: req.file.base64,
                 reason
             },
             include: {
