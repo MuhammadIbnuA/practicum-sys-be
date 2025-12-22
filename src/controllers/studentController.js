@@ -551,6 +551,86 @@ export const getMyPermissions = async (req, res) => {
     }
 };
 
+// =============================================================================
+// MY ATTENDANCE RECAP (Personal attendance across all classes)
+// =============================================================================
+
+/**
+ * Get my attendance recap for all enrolled classes
+ * GET /api/student/my-recap
+ */
+export const getMyAttendanceRecap = async (req, res) => {
+    try {
+        const userId = req.user.id;
+
+        // Get all enrollments with attendance data
+        const enrollments = await prisma.enrollment.findMany({
+            where: { user_id: userId },
+            include: {
+                class: {
+                    include: {
+                        course: true,
+                        semester: true,
+                        sessions: { orderBy: { session_number: 'asc' } }
+                    }
+                },
+                attendances: {
+                    include: { session: true }
+                }
+            }
+        });
+
+        // Build recap for each class
+        const recap = enrollments.map(enrollment => {
+            const cls = enrollment.class;
+
+            // Build attendance grid (P1-P11)
+            const sessions = cls.sessions.map(session => {
+                const attendance = enrollment.attendances.find(
+                    a => a.session_id === session.id
+                );
+                return {
+                    session_number: session.session_number,
+                    topic: session.topic,
+                    type: session.type,
+                    status: attendance?.status || null,
+                    grade: attendance?.grade || null,
+                    submitted_at: attendance?.submitted_at
+                };
+            });
+
+            // Calculate stats
+            const presentCount = sessions.filter(s => s.status === 'HADIR').length;
+            const totalSessions = sessions.filter(s => s.status !== null).length;
+            const grades = sessions.filter(s => s.grade !== null).map(s => s.grade);
+            const avgGrade = grades.length > 0
+                ? grades.reduce((a, b) => a + b, 0) / grades.length
+                : null;
+
+            return {
+                class_id: cls.id,
+                class_name: cls.name,
+                course: cls.course,
+                semester: cls.semester,
+                sessions,
+                stats: {
+                    present_count: presentCount,
+                    total_sessions: totalSessions,
+                    attendance_percentage: totalSessions > 0
+                        ? Math.round((presentCount / totalSessions) * 100)
+                        : 0,
+                    average_grade: avgGrade ? Math.round(avgGrade * 10) / 10 : null
+                }
+            };
+        });
+
+        return apiResponse.success(res, recap, 'My attendance recap retrieved.');
+    } catch (error) {
+        console.error('Get my attendance recap error:', error);
+        return apiResponse.error(res, 'Internal server error.', 500);
+    }
+};
+
 export default {
     getMySchedule,
     submitAttendance,
@@ -559,5 +639,7 @@ export default {
     getMyClasses,
     getClassReport,
     submitPermission,
-    getMyPermissions
+    getMyPermissions,
+    getMyAttendanceRecap
 };
+

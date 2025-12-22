@@ -937,6 +937,99 @@ export default {
     getAssistantLogs,
     validateAssistant,
     // Attendance
-    updateAttendanceStatus
+    updateAttendanceStatus,
+    getAssistantCheckInRecap
 };
+
+// =============================================================================
+// ASSISTANT CHECK-IN RECAP (Admin view of all assistant attendance)
+// =============================================================================
+
+/**
+ * Get assistant check-in recap for all classes
+ * GET /api/admin/assistant-recap
+ */
+export const getAssistantCheckInRecap = async (req, res) => {
+    try {
+        const { semester_id } = req.query;
+
+        // Get active semester if not specified
+        let semesterId = semester_id ? parseInt(semester_id) : null;
+        if (!semesterId) {
+            const activeSemester = await prisma.semester.findFirst({
+                where: { is_active: true }
+            });
+            semesterId = activeSemester?.id;
+        }
+
+        if (!semesterId) {
+            return apiResponse.success(res, [], 'No active semester.');
+        }
+
+        // Get all classes with assistants and their check-ins
+        const classes = await prisma.class.findMany({
+            where: { semester_id: semesterId },
+            include: {
+                course: true,
+                assistants: {
+                    include: {
+                        user: { select: { id: true, name: true, email: true } }
+                    }
+                },
+                sessions: {
+                    orderBy: { session_number: 'asc' },
+                    include: {
+                        assistantAttendances: true
+                    }
+                }
+            }
+        });
+
+        // Build recap grid
+        const recap = classes.map(cls => {
+            const assistantsRecap = cls.assistants.map(asst => {
+                const checkIns = cls.sessions.map(session => {
+                    const attendance = session.assistantAttendances.find(
+                        a => a.user_id === asst.user.id
+                    );
+                    return {
+                        session_number: session.session_number,
+                        checked_in: !!attendance,
+                        check_in_time: attendance?.check_in_time || null
+                    };
+                });
+
+                const presentCount = checkIns.filter(c => c.checked_in).length;
+
+                return {
+                    assistant_id: asst.user.id,
+                    assistant_name: asst.user.name,
+                    assistant_email: asst.user.email,
+                    sessions: checkIns,
+                    stats: {
+                        present_count: presentCount,
+                        total_sessions: cls.sessions.length,
+                        attendance_percentage: cls.sessions.length > 0
+                            ? Math.round((presentCount / cls.sessions.length) * 100)
+                            : 0
+                    }
+                };
+            });
+
+            return {
+                class_id: cls.id,
+                class_name: cls.name,
+                course: cls.course,
+                total_sessions: cls.sessions.length,
+                assistants: assistantsRecap
+            };
+        });
+
+        return apiResponse.success(res, recap, 'Assistant check-in recap retrieved.');
+    } catch (error) {
+        console.error('Get assistant check-in recap error:', error);
+        return apiResponse.error(res, 'Internal server error.', 500);
+    }
+};
+
 

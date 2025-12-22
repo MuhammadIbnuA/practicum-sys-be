@@ -36,7 +36,8 @@ import {
     getAssistantLogs,
     validateAssistant,
     // Attendance
-    updateAttendanceStatus
+    updateAttendanceStatus,
+    getAssistantCheckInRecap
 } from '../controllers/adminController.js';
 
 const router = Router();
@@ -228,5 +229,17 @@ router.get('/classes', getAllClasses);
  */
 router.put('/sessions/:sessionId/attendance', updateAttendanceStatus);
 
+// =============================================================================
+// ASSISTANT CHECK-IN RECAP
+// =============================================================================
+
+/**
+ * @route   GET /api/admin/assistant-recap
+ * @desc    Get assistant check-in recap for all classes
+ * @access  Admin
+ */
+router.get('/assistant-recap', getAssistantCheckInRecap);
+
 export default router;
+
 

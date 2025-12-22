@@ -15,7 +15,8 @@ import {
     getMyClasses,
     getClassReport,
     submitPermission,
-    getMyPermissions
+    getMyPermissions,
+    getMyAttendanceRecap
 } from '../controllers/studentController.js';
 
 const router = Router();
@@ -99,4 +100,16 @@ router.post('/permissions', uploadPermissionLetter, convertToBase64, handleUploa
  */
 router.get('/permissions', getMyPermissions);
 
+// =============================================================================
+// PERSONAL ATTENDANCE RECAP
+// =============================================================================
+
+/**
+ * @route   GET /api/student/my-recap
+ * @desc    Get my attendance recap across all enrolled classes
+ * @access  Authenticated
+ */
+router.get('/my-recap', getMyAttendanceRecap);
+
 export default router;
+
