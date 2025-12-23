@@ -4,30 +4,26 @@
  */
 
 import { Router } from 'express';
-import { register, login, getProfile } from '../controllers/authController.js';
 import { verifyToken } from '../middleware/authMiddleware.js';
+import {
+    register,
+    login,
+    refreshToken,
+    getProfile,
+    changePassword,
+    logout
+} from '../controllers/authController.js';
 
 const router = Router();
 
-/**
- * @route   POST /api/auth/register
- * @desc    Register a new user
- * @access  Public
- */
+// Public routes
 router.post('/register', register);
-
-/**
- * @route   POST /api/auth/login
- * @desc    Login user and return JWT
- * @access  Public
- */
 router.post('/login', login);
+router.post('/refresh', refreshToken);
+router.post('/logout', logout);
 
-/**
- * @route   GET /api/auth/me
- * @desc    Get current user profile
- * @access  Private
- */
+// Protected routes
 router.get('/me', verifyToken, getProfile);
+router.post('/change-password', verifyToken, changePassword);
 
 export default router;
