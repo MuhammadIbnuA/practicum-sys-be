@@ -7,7 +7,7 @@
 
 import { Router } from 'express';
 import { verifyToken } from '../middleware/authMiddleware.js';
-import { roleCheck } from '../middleware/roleMiddleware.js';
+import { verifyAdmin } from '../middleware/roleMiddleware.js';
 import { apiResponse } from '../utils/helpers.js';
 import { getDatabaseConfig, listDatabases, getDatabase } from '../config/database.js';
 import fs from 'fs/promises';
@@ -19,7 +19,7 @@ const router = Router();
  * GET /api/database/info
  * Get current database information
  */
-router.get('/info', verifyToken, roleCheck('admin'), (req, res) => {
+router.get('/info', verifyToken, verifyAdmin, (req, res) => {
     try {
         const config = getDatabaseConfig();
         
@@ -43,7 +43,7 @@ router.get('/info', verifyToken, roleCheck('admin'), (req, res) => {
  * GET /api/database/list
  * List all available databases
  */
-router.get('/list', verifyToken, roleCheck('admin'), (req, res) => {
+router.get('/list', verifyToken, verifyAdmin, (req, res) => {
     try {
         const databases = listDatabases();
         
@@ -63,7 +63,7 @@ router.get('/list', verifyToken, roleCheck('admin'), (req, res) => {
  * Switch to a different database
  * Body: { database: 'SUPABASE' | 'AIVEN' }
  */
-router.post('/switch', verifyToken, roleCheck('admin'), async (req, res) => {
+router.post('/switch', verifyToken, verifyAdmin, async (req, res) => {
     try {
         const { database } = req.body;
 
@@ -128,7 +128,7 @@ router.post('/switch', verifyToken, roleCheck('admin'), async (req, res) => {
  * Test connection to a database
  * Body: { database: 'SUPABASE' | 'AIVEN' }
  */
-router.post('/test', verifyToken, roleCheck('admin'), async (req, res) => {
+router.post('/test', verifyToken, verifyAdmin, async (req, res) => {
     try {
         const { database } = req.body;
 
