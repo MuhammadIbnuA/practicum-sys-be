@@ -12,6 +12,7 @@ import authRoutes from './src/routes/authRoutes.js';
 import adminRoutes from './src/routes/adminRoutes.js';
 import studentRoutes from './src/routes/studentRoutes.js';
 import teachingRoutes from './src/routes/teachingRoutes.js';
+import databaseRoutes from './src/routes/databaseRoutes.js';
 
 // Initialize Express app
 const app = express();
@@ -65,6 +66,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/student', studentRoutes);
 app.use('/api/teaching', teachingRoutes);
+app.use('/api/database', databaseRoutes);
 
 // =============================================================================
 // ERROR HANDLING

@@ -6,7 +6,7 @@ const BASE_URL = 'https://practicum-sys-be.vercel.app/api';
 const ADMIN_EMAIL = 'admin@practicum.com';
 const ADMIN_PASSWORD = 'admin123';
 // Use the first student from seed data
-const STUDENT_EMAIL = 'student1@example.com';
+const STUDENT_EMAIL = 'student1@student.com';
 const STUDENT_PASSWORD = 'password123';
 
 // Load testing configuration

@@ -62,7 +62,7 @@ export default function () {
       const res = http.post(
         `${BASE_URL}/auth/login`,
         JSON.stringify({
-          email: 'student1@example.com',
+          email: 'student1@student.com',
           password: 'password123',
         }),
         { headers: { 'Content-Type': 'application/json' } }
