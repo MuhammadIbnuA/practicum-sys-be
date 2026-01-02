@@ -181,16 +181,29 @@ export const getMasterSchedule = async (req, res) => {
  */
 export const getSemesters = async (req, res) => {
     try {
-        const semesters = await prisma.semester.findMany({
-            orderBy: { id: 'desc' },
-            include: {
-                _count: {
-                    select: { classes: true }
-                }
-            }
-        });
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 100;
+        const skip = (page - 1) * limit;
 
-        return apiResponse.success(res, semesters, 'Semesters retrieved.');
+        const [semesters, total] = await Promise.all([
+            prisma.semester.findMany({
+                select: {
+                    id: true,
+                    name: true,
+                    is_active: true,
+                    _count: { select: { classes: true } }
+                },
+                orderBy: { id: 'desc' },
+                skip,
+                take: limit
+            }),
+            prisma.semester.count()
+        ]);
+
+        return apiResponse.success(res, {
+            data: semesters,
+            pagination: { page, limit, total, pages: Math.ceil(total / limit) }
+        }, 'Semesters retrieved.');
     } catch (error) {
         console.error('Get semesters error:', error);
         return apiResponse.error(res, 'Internal server error.', 500);
@@ -260,16 +273,29 @@ export const activateSemester = async (req, res) => {
  */
 export const getCourses = async (req, res) => {
     try {
-        const courses = await prisma.course.findMany({
-            orderBy: { code: 'asc' },
-            include: {
-                _count: {
-                    select: { classes: true }
-                }
-            }
-        });
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 100;
+        const skip = (page - 1) * limit;
 
-        return apiResponse.success(res, courses, 'Courses retrieved.');
+        const [courses, total] = await Promise.all([
+            prisma.course.findMany({
+                select: {
+                    id: true,
+                    code: true,
+                    name: true,
+                    _count: { select: { classes: true } }
+                },
+                orderBy: { code: 'asc' },
+                skip,
+                take: limit
+            }),
+            prisma.course.count()
+        ]);
+
+        return apiResponse.success(res, {
+            data: courses,
+            pagination: { page, limit, total, pages: Math.ceil(total / limit) }
+        }, 'Courses retrieved.');
     } catch (error) {
         console.error('Get courses error:', error);
         return apiResponse.error(res, 'Internal server error.', 500);
@@ -318,34 +344,40 @@ export const createCourse = async (req, res) => {
 export const getClassesBySemester = async (req, res) => {
     try {
         const { semesterId } = req.params;
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 50;
+        const skip = (page - 1) * limit;
 
-        const classes = await prisma.class.findMany({
-            where: { semester_id: parseInt(semesterId) },
-            include: {
-                course: true,
-                semester: true,
-                time_slot: true,
-                room: true,
-                assistants: {
-                    include: {
-                        user: {
-                            select: { id: true, name: true, email: true }
-                        }
-                    }
+        const [classes, total] = await Promise.all([
+            prisma.class.findMany({
+                where: { semester_id: parseInt(semesterId) },
+                select: {
+                    id: true,
+                    course_id: true,
+                    semester_id: true,
+                    name: true,
+                    quota: true,
+                    day_of_week: true,
+                    time_slot_id: true,
+                    room_id: true,
+                    created_at: true,
+                    updated_at: true,
+                    course: { select: { id: true, code: true, name: true } },
+                    semester: { select: { id: true, name: true } },
+                    time_slot: { select: { id: true, label: true, start_time: true, end_time: true } },
+                    room: { select: { id: true, code: true, name: true } },
+                    _count: { select: { enrollments: true, sessions: true } }
                 },
-                _count: {
-                    select: {
-                        enrollments: true,
-                        sessions: true
-                    }
-                }
-            },
-            orderBy: [
-                { day_of_week: 'asc' },
-                { time_slot_id: 'asc' },
-                { room_id: 'asc' }
-            ]
-        });
+                orderBy: [
+                    { day_of_week: 'asc' },
+                    { time_slot_id: 'asc' },
+                    { room_id: 'asc' }
+                ],
+                skip,
+                take: limit
+            }),
+            prisma.class.count({ where: { semester_id: parseInt(semesterId) } })
+        ]);
 
         // Add day name for convenience
         const classesWithDayName = classes.map(c => ({
@@ -353,7 +385,10 @@ export const getClassesBySemester = async (req, res) => {
             day_name: DAY_NAMES[c.day_of_week]
         }));
 
-        return apiResponse.success(res, classesWithDayName, 'Classes retrieved.');
+        return apiResponse.success(res, {
+            data: classesWithDayName,
+            pagination: { page, limit, total, pages: Math.ceil(total / limit) }
+        }, 'Classes retrieved.');
     } catch (error) {
         console.error('Get classes by semester error:', error);
         return apiResponse.error(res, 'Internal server error.', 500);

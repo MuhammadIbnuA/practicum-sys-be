@@ -20,22 +20,40 @@ const DAY_NAMES = { 1: 'Senin', 2: 'Selasa', 3: 'Rabu', 4: 'Kamis', 5: 'Jumat' }
 export const getSchedule = async (req, res) => {
     try {
         const userId = req.user.id;
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 50;
+        const skip = (page - 1) * limit;
 
-        const assignments = await prisma.classAssistant.findMany({
-            where: { user_id: userId },
-            include: {
-                class: {
-                    include: {
-                        course: true,
-                        semester: true,
-                        time_slot: true,
-                        room: true,
-                        sessions: { orderBy: { session_number: 'asc' } },
-                        _count: { select: { enrollments: true } }
+        const [assignments, total] = await Promise.all([
+            prisma.classAssistant.findMany({
+                where: { user_id: userId },
+                select: {
+                    class: {
+                        select: {
+                            id: true,
+                            course_id: true,
+                            semester_id: true,
+                            name: true,
+                            quota: true,
+                            day_of_week: true,
+                            time_slot_id: true,
+                            room_id: true,
+                            created_at: true,
+                            updated_at: true,
+                            course: { select: { id: true, code: true, name: true } },
+                            semester: { select: { id: true, name: true } },
+                            time_slot: { select: { id: true, label: true, start_time: true, end_time: true } },
+                            room: { select: { id: true, code: true, name: true } },
+                            sessions: { select: { id: true, session_number: true }, orderBy: { session_number: 'asc' } },
+                            _count: { select: { enrollments: true } }
+                        }
                     }
-                }
-            }
-        });
+                },
+                skip,
+                take: limit
+            }),
+            prisma.classAssistant.count({ where: { user_id: userId } })
+        ]);
 
         const schedule = assignments.map(a => ({
             ...a.class,
@@ -43,7 +61,10 @@ export const getSchedule = async (req, res) => {
             student_count: a.class._count.enrollments
         }));
 
-        return apiResponse.success(res, schedule, 'Teaching schedule retrieved.');
+        return apiResponse.success(res, {
+            data: schedule,
+            pagination: { page, limit, total, pages: Math.ceil(total / limit) }
+        }, 'Teaching schedule retrieved.');
     } catch (error) {
         console.error('Get schedule error:', error);
         return apiResponse.error(res, 'Internal server error.', 500);

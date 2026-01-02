@@ -55,6 +55,8 @@ model User {
   permissionRequests   PermissionRequest[]
   approvedAttendances  StudentAttendance[]   @relation("ApprovedBy")
 
+  @@index([email]) // Performance: user lookup by email (login)
+  @@index([is_admin]) // Performance: filter admin users
   @@map("users")
 }
 
@@ -70,6 +72,7 @@ model Semester {
   // Relations
   classes Class[]
 
+  @@index([is_active]) // Performance: filter active semesters
   @@map("semesters")
 }
 
@@ -145,6 +148,10 @@ model Class {
 
   @@unique([course_id, semester_id, name])
   @@unique([semester_id, day_of_week, time_slot_id, room_id]) // Prevent schedule conflicts
+  @@index([course_id])
+  @@index([semester_id])
+  @@index([time_slot_id])
+  @@index([room_id])
   @@map("classes")
 }
 

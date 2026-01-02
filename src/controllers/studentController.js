@@ -334,24 +334,43 @@ export const enrollClass = async (req, res) => {
 export const getMyClasses = async (req, res) => {
     try {
         const userId = req.user.id;
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 50;
+        const skip = (page - 1) * limit;
 
-        const enrollments = await prisma.enrollment.findMany({
-            where: { user_id: userId },
-            include: {
-                class: {
-                    include: {
-                        course: true,
-                        semester: true,
-                        time_slot: true,
-                        room: true,
-                        assistants: {
-                            include: { user: { select: { id: true, name: true } } }
+        const [enrollments, total] = await Promise.all([
+            prisma.enrollment.findMany({
+                where: { user_id: userId },
+                select: {
+                    enrolled_at: true,
+                    class: {
+                        select: {
+                            id: true,
+                            course_id: true,
+                            semester_id: true,
+                            name: true,
+                            quota: true,
+                            day_of_week: true,
+                            time_slot_id: true,
+                            room_id: true,
+                            created_at: true,
+                            updated_at: true,
+                            course: { select: { id: true, code: true, name: true } },
+                            semester: { select: { id: true, name: true } },
+                            time_slot: { select: { id: true, label: true, start_time: true, end_time: true } },
+                            room: { select: { id: true, code: true, name: true } },
+                            assistants: {
+                                select: { user: { select: { id: true, name: true } } }
+                            }
                         }
                     }
-                }
-            },
-            orderBy: { class: { semester: { id: 'desc' } } }
-        });
+                },
+                orderBy: { class: { semester: { id: 'desc' } } },
+                skip,
+                take: limit
+            }),
+            prisma.enrollment.count({ where: { user_id: userId } })
+        ]);
 
         const classes = enrollments.map(e => ({
             ...e.class,
@@ -359,7 +378,10 @@ export const getMyClasses = async (req, res) => {
             enrolled_at: e.enrolled_at
         }));
 
-        return apiResponse.success(res, classes, 'My classes retrieved.');
+        return apiResponse.success(res, {
+            data: classes,
+            pagination: { page, limit, total, pages: Math.ceil(total / limit) }
+        }, 'My classes retrieved.');
     } catch (error) {
         console.error('Get my classes error:', error);
         return apiResponse.error(res, 'Internal server error.', 500);
