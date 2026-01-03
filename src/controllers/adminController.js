@@ -187,10 +187,7 @@ export const getSemesters = async (req, res) => {
 
         const [semesters, total] = await Promise.all([
             prisma.semester.findMany({
-                select: {
-                    id: true,
-                    name: true,
-                    is_active: true,
+                include: {
                     _count: { select: { classes: true } }
                 },
                 orderBy: { id: 'desc' },
@@ -279,10 +276,7 @@ export const getCourses = async (req, res) => {
 
         const [courses, total] = await Promise.all([
             prisma.course.findMany({
-                select: {
-                    id: true,
-                    code: true,
-                    name: true,
+                include: {
                     _count: { select: { classes: true } }
                 },
                 orderBy: { code: 'asc' },
