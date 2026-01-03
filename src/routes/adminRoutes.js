@@ -37,7 +37,11 @@ import {
     validateAssistant,
     // Attendance
     updateAttendanceStatus,
-    getAssistantCheckInRecap
+    getAssistantCheckInRecap,
+    // Student Management
+    getStudents,
+    resetStudentPassword,
+    deleteStudent
 } from '../controllers/adminController.js';
 
 const router = Router();
@@ -239,6 +243,31 @@ router.put('/sessions/:sessionId/attendance', updateAttendanceStatus);
  * @access  Admin
  */
 router.get('/assistant-recap', getAssistantCheckInRecap);
+
+// =============================================================================
+// STUDENT ACCOUNT MANAGEMENT
+// =============================================================================
+
+/**
+ * @route   GET /api/admin/students
+ * @desc    Get all students (non-admin users)
+ * @access  Admin
+ */
+router.get('/students', getStudents);
+
+/**
+ * @route   POST /api/admin/students/:studentId/reset-password
+ * @desc    Reset student password
+ * @access  Admin
+ */
+router.post('/students/:studentId/reset-password', resetStudentPassword);
+
+/**
+ * @route   DELETE /api/admin/students/:studentId
+ * @desc    Delete student account
+ * @access  Admin
+ */
+router.delete('/students/:studentId', deleteStudent);
 
 export default router;
 

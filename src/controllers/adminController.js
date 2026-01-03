@@ -3,6 +3,7 @@
  * Handles all admin operations: semesters, courses, classes, rooms, schedule, permissions
  */
 
+import bcrypt from 'bcrypt';
 import prisma from '../lib/prisma.js';
 import { apiResponse, mapReasonToStatus } from '../utils/helpers.js';
 
@@ -1028,6 +1029,146 @@ export const getAssistantCheckInRecap = async (req, res) => {
     }
 };
 
+// =============================================================================
+// STUDENT ACCOUNT MANAGEMENT
+// =============================================================================
+
+/**
+ * Get all students (non-admin users)
+ * GET /api/admin/students
+ */
+export const getStudents = async (req, res) => {
+    try {
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 50;
+        const skip = (page - 1) * limit;
+        const search = req.query.search || '';
+
+        const where = {
+            is_admin: false,
+            ...(search && {
+                OR: [
+                    { name: { contains: search, mode: 'insensitive' } },
+                    { email: { contains: search, mode: 'insensitive' } },
+                    { nim: { contains: search, mode: 'insensitive' } }
+                ]
+            })
+        };
+
+        const [students, total] = await Promise.all([
+            prisma.user.findMany({
+                where,
+                select: {
+                    id: true,
+                    email: true,
+                    name: true,
+                    nim: true,
+                    created_at: true,
+                    _count: { select: { enrollments: true } }
+                },
+                orderBy: { created_at: 'desc' },
+                skip,
+                take: limit
+            }),
+            prisma.user.count({ where })
+        ]);
+
+        return apiResponse.success(res, {
+            data: students,
+            pagination: { page, limit, total, pages: Math.ceil(total / limit) }
+        }, 'Students retrieved.');
+    } catch (error) {
+        console.error('Get students error:', error);
+        return apiResponse.error(res, 'Internal server error.', 500);
+    }
+};
+
+/**
+ * Reset student password
+ * POST /api/admin/students/:studentId/reset-password
+ */
+export const resetStudentPassword = async (req, res) => {
+    try {
+        const { studentId } = req.params;
+        const { newPassword } = req.body;
+
+        if (!newPassword) {
+            return apiResponse.error(res, 'New password is required.', 400);
+        }
+
+        // Validate password strength
+        if (newPassword.length < 8) {
+            return apiResponse.error(res, 'Password must be at least 8 characters.', 400);
+        }
+
+        // Get student
+        const student = await prisma.user.findUnique({
+            where: { id: parseInt(studentId) }
+        });
+
+        if (!student) {
+            return apiResponse.error(res, 'Student not found.', 404);
+        }
+
+        if (student.is_admin) {
+            return apiResponse.error(res, 'Cannot reset password for admin users.', 403);
+        }
+
+        // Hash new password
+        const hashedPassword = await bcrypt.hash(newPassword, 12);
+
+        // Update password
+        const updated = await prisma.user.update({
+            where: { id: parseInt(studentId) },
+            data: { password: hashedPassword },
+            select: {
+                id: true,
+                email: true,
+                name: true,
+                nim: true
+            }
+        });
+
+        return apiResponse.success(res, updated, 'Student password reset successfully.');
+    } catch (error) {
+        console.error('Reset student password error:', error);
+        return apiResponse.error(res, 'Internal server error.', 500);
+    }
+};
+
+/**
+ * Delete student account
+ * DELETE /api/admin/students/:studentId
+ */
+export const deleteStudent = async (req, res) => {
+    try {
+        const { studentId } = req.params;
+
+        // Get student
+        const student = await prisma.user.findUnique({
+            where: { id: parseInt(studentId) }
+        });
+
+        if (!student) {
+            return apiResponse.error(res, 'Student not found.', 404);
+        }
+
+        if (student.is_admin) {
+            return apiResponse.error(res, 'Cannot delete admin users.', 403);
+        }
+
+        // Delete student (cascade will handle related records)
+        await prisma.user.delete({
+            where: { id: parseInt(studentId) }
+        });
+
+        return apiResponse.success(res, null, 'Student account deleted.');
+    } catch (error) {
+        console.error('Delete student error:', error);
+        return apiResponse.error(res, 'Internal server error.', 500);
+    }
+};
+
 export default {
     // Time Slots & Rooms
     getTimeSlots,
@@ -1058,7 +1199,11 @@ export default {
     validateAssistant,
     // Attendance
     updateAttendanceStatus,
-    getAssistantCheckInRecap
+    getAssistantCheckInRecap,
+    // Student Management
+    getStudents,
+    resetStudentPassword,
+    deleteStudent
 };
 
 
