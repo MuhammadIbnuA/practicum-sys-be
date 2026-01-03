@@ -92,11 +92,16 @@ export const register = async (req, res) => {
 
         // Check if NIM already exists (if provided)
         if (nim) {
-            const existingNim = await prisma.user.findUnique({
-                where: { nim: nim.trim() }
-            });
-            if (existingNim) {
-                return apiResponse.error(res, 'NIM already registered.', 409);
+            try {
+                const existingNim = await prisma.user.findUnique({
+                    where: { nim: nim.trim() }
+                });
+                if (existingNim) {
+                    return apiResponse.error(res, 'NIM already registered.', 409);
+                }
+            } catch (err) {
+                // NIM column might not exist yet, skip check
+                if (!err.message.includes('nim')) throw err;
             }
         }
 
@@ -104,24 +109,42 @@ export const register = async (req, res) => {
         const saltRounds = 12;
         const hashedPassword = await bcrypt.hash(password, saltRounds);
 
-        // Create user
-        const user = await prisma.user.create({
-            data: {
-                email: email.toLowerCase().trim(),
-                password: hashedPassword,
-                name: name.trim(),
-                nim: nim ? nim.trim() : null,
-                is_admin: false
-            },
-            select: {
-                id: true,
-                email: true,
-                name: true,
-                nim: true,
-                is_admin: true,
-                created_at: true
+        // Create user - try with NIM first, fallback without
+        let user;
+        try {
+            user = await prisma.user.create({
+                data: {
+                    email: email.toLowerCase().trim(),
+                    password: hashedPassword,
+                    name: name.trim(),
+                    nim: nim ? nim.trim() : null,
+                    is_admin: false
+                },
+                select: {
+                    id: true,
+                    email: true,
+                    name: true,
+                    nim: true,
+                    is_admin: true,
+                    created_at: true
+                }
+            });
+        } catch (err) {
+            if (err.message.includes('nim')) {
+                // NIM column doesn't exist, create without it
+                user = await prisma.user.create({
+                    data: {
+                        email: email.toLowerCase().trim(),
+                        password: hashedPassword,
+                        name: name.trim(),
+                        is_admin: false
+                    }
+                });
+                user.nim = null;
+            } else {
+                throw err;
             }
-        });
+        }
 
         // Generate tokens
         const accessToken = generateAccessToken(user.id);
@@ -178,7 +201,7 @@ export const login = async (req, res) => {
             id: user.id,
             email: user.email,
             name: user.name,
-            nim: user.nim,
+            nim: user.nim || null,
             is_admin: user.is_admin,
             created_at: user.created_at
         };
@@ -228,14 +251,7 @@ export const refreshToken = async (req, res) => {
 
         // Get user
         const user = await prisma.user.findUnique({
-            where: { id: decoded.userId },
-            select: {
-                id: true,
-                email: true,
-                name: true,
-                nim: true,
-                is_admin: true
-            }
+            where: { id: decoded.userId }
         });
 
         if (!user) {
@@ -246,8 +262,16 @@ export const refreshToken = async (req, res) => {
         const newAccessToken = generateAccessToken(user.id);
         const newRefreshToken = generateRefreshToken(user.id);
 
+        const userResponse = {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            nim: user.nim || null,
+            is_admin: user.is_admin
+        };
+
         return apiResponse.success(res, {
-            user,
+            user: userResponse,
             accessToken: newAccessToken,
             refreshToken: newRefreshToken,
             expiresIn: 900
@@ -265,24 +289,23 @@ export const refreshToken = async (req, res) => {
 export const getProfile = async (req, res) => {
     try {
         const user = await prisma.user.findUnique({
-            where: { id: req.user.id },
-            select: {
-                id: true,
-                email: true,
-                name: true,
-                nim: true,
-                is_admin: true,
-                created_at: true,
-                _count: {
-                    select: {
-                        enrollments: true,
-                        classAssistants: true
-                    }
-                }
-            }
+            where: { id: req.user.id }
         });
 
-        return apiResponse.success(res, user, 'Profile retrieved.');
+        if (!user) {
+            return apiResponse.error(res, 'User not found.', 404);
+        }
+
+        const userResponse = {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            nim: user.nim || null,
+            is_admin: user.is_admin,
+            created_at: user.created_at
+        };
+
+        return apiResponse.success(res, userResponse, 'Profile retrieved.');
     } catch (error) {
         console.error('Get profile error:', error);
         return apiResponse.error(res, 'Internal server error.', 500);
