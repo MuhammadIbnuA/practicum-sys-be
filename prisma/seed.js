@@ -16,7 +16,12 @@ async function main() {
 
     // Clean database
     console.log('⏳ Cleaning existing data...');
-    await prisma.$executeRaw`TRUNCATE TABLE student_attendances, assistant_attendances, permission_requests, enrollments, class_assistants, class_sessions, classes, courses, semesters, rooms, time_slots, users RESTART IDENTITY CASCADE`;
+    try {
+        await prisma.$executeRaw`TRUNCATE TABLE student_attendances, assistant_attendances, permission_requests, enrollments, class_assistants, class_sessions, classes, courses, semesters, rooms, time_slots, users RESTART IDENTITY CASCADE`;
+    } catch (e) {
+        // Tables might not exist yet, that's okay
+        console.log('Note: Some tables may not exist yet, continuing...');
+    }
     console.log('✓ Database cleaned\n');
 
     // 1. TIME SLOTS

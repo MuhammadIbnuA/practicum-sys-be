@@ -65,10 +65,11 @@ const validateEmail = (email) => {
 /**
  * Register a new user
  * POST /api/auth/register
+ * Body: { email, password, name, nim? }
  */
 export const register = async (req, res) => {
     try {
-        const { email, password, name } = req.body;
+        const { email, password, name, nim } = req.body;
 
         // Validation
         if (!email || !password || !name) {
@@ -80,12 +81,6 @@ export const register = async (req, res) => {
             return apiResponse.error(res, 'Invalid email format.', 400);
         }
 
-        // Password validation (for production)
-        // const passwordErrors = validatePassword(password);
-        // if (passwordErrors.length > 0) {
-        //     return apiResponse.error(res, passwordErrors.join('. '), 400);
-        // }
-
         // Check if email already exists
         const existingUser = await prisma.user.findUnique({
             where: { email: email.toLowerCase().trim() }
@@ -95,8 +90,18 @@ export const register = async (req, res) => {
             return apiResponse.error(res, 'Email already registered.', 409);
         }
 
+        // Check if NIM already exists (if provided)
+        if (nim) {
+            const existingNim = await prisma.user.findUnique({
+                where: { nim: nim.trim() }
+            });
+            if (existingNim) {
+                return apiResponse.error(res, 'NIM already registered.', 409);
+            }
+        }
+
         // Hash password
-        const saltRounds = 12; // Increased from 10 for better security
+        const saltRounds = 12;
         const hashedPassword = await bcrypt.hash(password, saltRounds);
 
         // Create user
@@ -105,12 +110,14 @@ export const register = async (req, res) => {
                 email: email.toLowerCase().trim(),
                 password: hashedPassword,
                 name: name.trim(),
+                nim: nim ? nim.trim() : null,
                 is_admin: false
             },
             select: {
                 id: true,
                 email: true,
                 name: true,
+                nim: true,
                 is_admin: true,
                 created_at: true
             }
@@ -124,7 +131,7 @@ export const register = async (req, res) => {
             user,
             accessToken,
             refreshToken,
-            expiresIn: 900 // 15 minutes in seconds
+            expiresIn: 900
         }, 'Registration successful.', 201);
     } catch (error) {
         console.error('Registration error:', error);
@@ -171,6 +178,7 @@ export const login = async (req, res) => {
             id: user.id,
             email: user.email,
             name: user.name,
+            nim: user.nim,
             is_admin: user.is_admin,
             created_at: user.created_at
         };
@@ -225,6 +233,7 @@ export const refreshToken = async (req, res) => {
                 id: true,
                 email: true,
                 name: true,
+                nim: true,
                 is_admin: true
             }
         });
@@ -261,6 +270,7 @@ export const getProfile = async (req, res) => {
                 id: true,
                 email: true,
                 name: true,
+                nim: true,
                 is_admin: true,
                 created_at: true,
                 _count: {
