@@ -1049,8 +1049,7 @@ export const getStudents = async (req, res) => {
             ...(search && {
                 OR: [
                     { name: { contains: search, mode: 'insensitive' } },
-                    { email: { contains: search, mode: 'insensitive' } },
-                    { nim: { contains: search, mode: 'insensitive' } }
+                    { email: { contains: search, mode: 'insensitive' } }
                 ]
             })
         };

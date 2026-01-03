@@ -101,6 +101,7 @@ async function main() {
             email: `student${i + 1}@student.com`,
             password: hashedPassword,
             name,
+            nim: `2024${String(i + 1).padStart(5, '0')}`,
             is_admin: false
         }))
     });

@@ -353,8 +353,6 @@ export const getMyClasses = async (req, res) => {
                             day_of_week: true,
                             time_slot_id: true,
                             room_id: true,
-                            created_at: true,
-                            updated_at: true,
                             course: { select: { id: true, code: true, name: true } },
                             semester: { select: { id: true, name: true } },
                             time_slot: { select: { id: true, label: true, start_time: true, end_time: true } },
