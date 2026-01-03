@@ -43,7 +43,7 @@ export function setup() {
         console.log('Note: You need to assign this user as assistant to a class via Admin API');
 
         return {
-            assistantToken: data.data.token,
+            assistantToken: data.data.accessToken || data.data.token,
             assistantId: data.data.user.id,
             assistantEmail: assistantEmail
         };

@@ -44,13 +44,13 @@ export default function () {
             const success = check(res, {
                 'Register: status is 201': (r) => r.status === 201,
                 'Register: response has success true': (r) => parseJSON(r)?.success === true,
-                'Register: response has token': (r) => parseJSON(r)?.data?.token !== undefined,
+                'Register: response has token': (r) => (parseJSON(r)?.data?.accessToken || parseJSON(r)?.data?.token) !== undefined,
                 'Register: response has user': (r) => parseJSON(r)?.data?.user !== undefined,
             });
 
             if (success) {
                 const data = parseJSON(res);
-                testUser.token = data.data.token;
+                testUser.token = data.data.accessToken || data.data.token;
                 console.log('✓ Register successful, token obtained');
             }
 
@@ -103,13 +103,13 @@ export default function () {
             const success = check(res, {
                 'Login: status is 200': (r) => r.status === 200,
                 'Login: response has success true': (r) => parseJSON(r)?.success === true,
-                'Login: response has token': (r) => parseJSON(r)?.data?.token !== undefined,
+                'Login: response has token': (r) => (parseJSON(r)?.data?.accessToken || parseJSON(r)?.data?.token) !== undefined,
                 'Login: response has user info': (r) => parseJSON(r)?.data?.user?.email === testUser.email,
             });
 
             if (success) {
                 const data = parseJSON(res);
-                testUser.token = data.data.token;
+                testUser.token = data.data.accessToken || data.data.token;
                 console.log('✓ Login successful');
             }
 

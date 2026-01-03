@@ -36,7 +36,7 @@ export function setup() {
         const data = parseJSON(registerRes);
         console.log('✓ Student user created:', studentEmail);
         return {
-            studentToken: data.data.token,
+            studentToken: data.data.accessToken || data.data.token,
             studentId: data.data.user.id,
             studentEmail: studentEmail
         };

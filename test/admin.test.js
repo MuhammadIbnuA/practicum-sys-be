@@ -25,14 +25,22 @@ let testClassId = null;
 let assistantUserId = null;
 
 export function setup() {
-    // First, register an admin user (you may need to manually set is_admin=true in DB)
-    // Or use existing admin credentials
+    // Try to login with existing admin first
+    const loginRes = http.post(`${BASE_URL}/api/auth/login`, JSON.stringify({
+        email: 'admin@practicum.com',
+        password: 'admin123',
+    }), { headers: defaultHeaders });
 
-    // For this test, we'll create a user and assume you'll set is_admin=true manually
+    if (loginRes.status === 200) {
+        const data = parseJSON(loginRes);
+        console.log('✓ Logged in as existing admin');
+        return { adminToken: data.data.accessToken || data.data.token };
+    }
+
+    // Fallback: create a new user (won't have admin privileges)
     const adminEmail = `admin_${Date.now()}@test.com`;
     const adminPassword = 'AdminPass123!';
 
-    // Register admin user
     const registerRes = http.post(`${BASE_URL}/api/auth/register`, JSON.stringify({
         email: adminEmail,
         password: adminPassword,
@@ -43,21 +51,10 @@ export function setup() {
         console.log('Admin user created. Please set is_admin=true in database for:', adminEmail);
         const data = parseJSON(registerRes);
         return {
-            adminToken: data.data.token,
+            adminToken: data.data.accessToken || data.data.token,
             adminEmail,
             note: 'Set is_admin=true in DB for this user to run admin tests'
         };
-    }
-
-    // Try to login with existing admin (if you have one)
-    const loginRes = http.post(`${BASE_URL}/api/auth/login`, JSON.stringify({
-        email: 'admin@test.com', // Change to your admin email
-        password: 'admin123',    // Change to your admin password
-    }), { headers: defaultHeaders });
-
-    if (loginRes.status === 200) {
-        const data = parseJSON(loginRes);
-        return { adminToken: data.data.token };
     }
 
     return { adminToken: null };

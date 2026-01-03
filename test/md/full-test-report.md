@@ -1,17 +1,17 @@
 # Practicum API Full Functional Test Report (v2)
 
-**Generated:** 2025-12-22T09:19:51.707Z
+**Generated:** 2026-01-03T05:18:32.681Z
 
 ## Test Summary
 
 | Metric | Value |
 |--------|-------|
-| Total HTTP Requests | 19 |
-| Failed Requests | 0 |
-| Average Response Time | 1148.36ms |
-| P95 Response Time | 1722.66ms |
-| Checks Passed | 16 |
-| Checks Failed | 0 |
+| Total HTTP Requests | 22 |
+| Failed Requests | 3 |
+| Average Response Time | 1353.35ms |
+| P95 Response Time | 2375.69ms |
+| Checks Passed | 15 |
+| Checks Failed | 1 |
 
 ## Features Tested
 

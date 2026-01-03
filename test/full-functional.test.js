@@ -49,7 +49,8 @@ export default function () {
             }), { headers: defaultHeaders });
 
             if (res.status === 200) {
-                testData.admin.token = parseJSON(res).data.token;
+                const data = parseJSON(res).data;
+                testData.admin.token = data.accessToken || data.token;
                 console.log('✓ Admin logged in');
             } else {
                 console.log('✗ Admin login failed:', res.status);
@@ -68,7 +69,7 @@ export default function () {
 
             if (res.status === 201) {
                 const data = parseJSON(res);
-                testData.student.token = data.data.token;
+                testData.student.token = data.data.accessToken || data.data.token;
                 testData.student.id = data.data.user.id;
                 console.log('✓ Student registered:', testData.student.email);
             }
@@ -86,7 +87,7 @@ export default function () {
 
             if (res.status === 201) {
                 const data = parseJSON(res);
-                testData.assistant.token = data.data.token;
+                testData.assistant.token = data.data.accessToken || data.data.token;
                 testData.assistant.id = data.data.user.id;
                 console.log('✓ Assistant registered:', testData.assistant.email);
             }
@@ -100,6 +101,25 @@ export default function () {
     // =========================================================================
 
     group('Phase 2: Admin Schedule Setup', function () {
+
+        group('Get Semesters', function () {
+            const res = http.get(`${BASE_URL}/api/admin/semesters`, {
+                headers: authHeaders(testData.admin.token)
+            });
+
+            if (res.status === 200) {
+                const result = parseJSON(res).data;
+                const semesters = result.data || result;
+                if (semesters && semesters.length > 0) {
+                    // Find active semester or use first one
+                    const active = semesters.find(s => s.is_active) || semesters[0];
+                    testData.semester.id = active.id;
+                    console.log('✓ Semester:', active.name, '(ID:', active.id + ')');
+                }
+            }
+        });
+
+        sleep(0.2);
 
         group('Get Time Slots', function () {
             const res = http.get(`${BASE_URL}/api/admin/time-slots`, {
@@ -137,8 +157,10 @@ export default function () {
             });
 
             if (res.status === 200) {
-                const courses = parseJSON(res).data;
-                if (courses.length > 0) {
+                const result = parseJSON(res).data;
+                // Handle both paginated and non-paginated responses
+                const courses = result.data || result;
+                if (courses && courses.length > 0) {
                     testData.course.id = courses[0].id;
                     console.log('✓ Course:', courses[0].code);
                 }
@@ -153,32 +175,42 @@ export default function () {
                 return;
             }
 
-            const payload = JSON.stringify({
-                course_id: testData.course.id,
-                semester_id: testData.semester.id,
-                name: `Kelas Test ${Date.now()}`,
-                quota: 30,
-                day_of_week: 1, // Monday
-                time_slot_id: testData.timeSlots[0].id,
-                room_id: testData.rooms[0].id
-            });
+            // Try different combinations to avoid schedule conflicts
+            let created = false;
+            for (let day = 1; day <= 5 && !created; day++) {
+                for (let slotIdx = 0; slotIdx < testData.timeSlots.length && !created; slotIdx++) {
+                    for (let roomIdx = 0; roomIdx < testData.rooms.length && !created; roomIdx++) {
+                        const payload = JSON.stringify({
+                            course_id: testData.course.id,
+                            semester_id: testData.semester.id,
+                            name: `Kelas Test ${Date.now()}`,
+                            quota: 30,
+                            day_of_week: day,
+                            time_slot_id: testData.timeSlots[slotIdx].id,
+                            room_id: testData.rooms[roomIdx].id
+                        });
 
-            const res = http.post(`${BASE_URL}/api/admin/classes`, payload, {
-                headers: authHeaders(testData.admin.token)
-            });
+                        const res = http.post(`${BASE_URL}/api/admin/classes`, payload, {
+                            headers: authHeaders(testData.admin.token)
+                        });
 
-            if (res.status === 201) {
-                const data = parseJSON(res).data;
-                testData.class.id = data.id;
-                if (data.sessions && data.sessions.length > 0) {
-                    testData.session.id = data.sessions[0].id;
+                        if (res.status === 201) {
+                            const data = parseJSON(res).data;
+                            testData.class.id = data.id;
+                            if (data.sessions && data.sessions.length > 0) {
+                                testData.session.id = data.sessions[0].id;
+                            }
+                            console.log('✓ Class created ID:', testData.class.id);
+                            console.log('✓ Sessions:', data.sessions?.length);
+                            check(res, { 'Class has 11 sessions': () => data.sessions?.length === 11 });
+                            created = true;
+                        }
+                    }
                 }
-                console.log('✓ Class created ID:', testData.class.id);
-                console.log('✓ Sessions:', data.sessions?.length);
-
-                check(res, { 'Class has 11 sessions': () => data.sessions?.length === 11 });
-            } else {
-                console.log('✗ Create class failed:', res.body);
+            }
+            
+            if (!created) {
+                console.log('⚠ Could not create class - all slots taken');
             }
         });
 
