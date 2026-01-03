@@ -36,6 +36,13 @@ enum PermissionStatus {
   REJECTED
 }
 
+enum PaymentStatus {
+  PENDING      // Waiting for payment proof
+  VERIFIED     // Admin verified payment
+  REJECTED     // Payment rejected
+  EXPIRED      // Payment request expired
+}
+
 // =============================================================================
 // USER MODEL
 // =============================================================================
@@ -55,6 +62,8 @@ model User {
   assistantAttendances AssistantAttendance[]
   permissionRequests   PermissionRequest[]
   approvedAttendances  StudentAttendance[]   @relation("ApprovedBy")
+  payments             Payment[]
+  verifiedPayments     Payment[]             @relation("VerifiedPayments")
 
   @@index([email]) // Performance: user lookup by email (login)
   @@index([nim])   // Performance: user lookup by NIM
@@ -147,6 +156,7 @@ model Class {
   sessions   ClassSession[]
   enrollments Enrollment[]
   assistants  ClassAssistant[]
+  payments    Payment[]
 
   @@unique([course_id, semester_id, name])
   @@unique([semester_id, day_of_week, time_slot_id, room_id]) // Prevent schedule conflicts
@@ -286,5 +296,35 @@ model PermissionRequest {
   @@index([session_id]) // Performance: queries by session
   @@index([status]) // Performance: filter by status
   @@map("permission_requests")
+}
+
+// =============================================================================
+// PAYMENT MODEL (Class Enrollment Payment)
+// =============================================================================
+
+model Payment {
+  id              Int           @id @default(autoincrement())
+  student_id      Int
+  class_id        Int
+  amount          Int           // IDR amount (5000)
+  proof_file_name String        // Original filename of transfer proof
+  proof_file_url  String        @db.Text // Base64 encoded file or URL
+  status          PaymentStatus @default(PENDING)
+  verified_by_id  Int?          // Admin who verified
+  verified_at     DateTime?
+  created_at      DateTime      @default(now())
+  updated_at      DateTime      @updatedAt
+
+  // Relations
+  student    User   @relation(fields: [student_id], references: [id], onDelete: Cascade)
+  class      Class  @relation(fields: [class_id], references: [id], onDelete: Cascade)
+  verified_by User? @relation("VerifiedPayments", fields: [verified_by_id], references: [id])
+
+  @@unique([student_id, class_id]) // One payment per student per class
+  @@index([student_id])
+  @@index([class_id])
+  @@index([status])
+  @@index([created_at])
+  @@map("payments")
 }
 

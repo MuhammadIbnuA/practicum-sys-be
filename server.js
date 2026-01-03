@@ -13,6 +13,7 @@ import authRoutes from './src/routes/authRoutes.js';
 import adminRoutes from './src/routes/adminRoutes.js';
 import studentRoutes from './src/routes/studentRoutes.js';
 import teachingRoutes from './src/routes/teachingRoutes.js';
+import paymentRoutes from './src/routes/paymentRoutes.js';
 import databaseRoutes from './src/routes/databaseRoutes.js';
 
 // Initialize Express app
@@ -120,6 +121,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/student', studentRoutes);
 app.use('/api/teaching', teachingRoutes);
+app.use('/api/payment', paymentRoutes);
 app.use('/api/database', databaseRoutes);
 
 // =============================================================================
