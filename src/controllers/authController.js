@@ -101,7 +101,7 @@ export const register = async (req, res) => {
                 }
             } catch (err) {
                 // NIM column might not exist yet, skip check
-                if (!err.message.includes('nim')) throw err;
+                if (err.code !== 'P2022') throw err;
             }
         }
 
@@ -119,18 +119,10 @@ export const register = async (req, res) => {
                     name: name.trim(),
                     nim: nim ? nim.trim() : null,
                     is_admin: false
-                },
-                select: {
-                    id: true,
-                    email: true,
-                    name: true,
-                    nim: true,
-                    is_admin: true,
-                    created_at: true
                 }
             });
         } catch (err) {
-            if (err.message.includes('nim')) {
+            if (err.code === 'P2022' && err.message.includes('nim')) {
                 // NIM column doesn't exist, create without it
                 user = await prisma.user.create({
                     data: {
@@ -140,7 +132,6 @@ export const register = async (req, res) => {
                         is_admin: false
                     }
                 });
-                user.nim = null;
             } else {
                 throw err;
             }
@@ -150,8 +141,17 @@ export const register = async (req, res) => {
         const accessToken = generateAccessToken(user.id);
         const refreshToken = generateRefreshToken(user.id);
 
+        const userResponse = {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            nim: user.nim || null,
+            is_admin: user.is_admin,
+            created_at: user.created_at
+        };
+
         return apiResponse.success(res, {
-            user,
+            user: userResponse,
             accessToken,
             refreshToken,
             expiresIn: 900
@@ -175,10 +175,26 @@ export const login = async (req, res) => {
             return apiResponse.error(res, 'Email and password are required.', 400);
         }
 
-        // Find user
-        const user = await prisma.user.findUnique({
-            where: { email: email.toLowerCase().trim() }
-        });
+        // Find user - use raw query to avoid NIM column issues
+        let user;
+        try {
+            user = await prisma.user.findUnique({
+                where: { email: email.toLowerCase().trim() }
+            });
+        } catch (err) {
+            if (err.code === 'P2022' && err.message.includes('nim')) {
+                // NIM column doesn't exist, use raw query
+                const result = await prisma.$queryRaw`
+                    SELECT id, email, password, name, is_admin, created_at 
+                    FROM "public"."users" 
+                    WHERE email = ${email.toLowerCase().trim()}
+                    LIMIT 1
+                `;
+                user = result && result.length > 0 ? result[0] : null;
+            } else {
+                throw err;
+            }
+        }
 
         if (!user) {
             // Use generic message to prevent email enumeration
@@ -249,10 +265,26 @@ export const refreshToken = async (req, res) => {
             return apiResponse.error(res, 'Invalid token type.', 401);
         }
 
-        // Get user
-        const user = await prisma.user.findUnique({
-            where: { id: decoded.userId }
-        });
+        // Get user - use raw query to avoid NIM column issues
+        let user;
+        try {
+            user = await prisma.user.findUnique({
+                where: { id: decoded.userId }
+            });
+        } catch (err) {
+            if (err.code === 'P2022' && err.message.includes('nim')) {
+                // NIM column doesn't exist, use raw query
+                const result = await prisma.$queryRaw`
+                    SELECT id, email, password, name, is_admin, created_at 
+                    FROM "public"."users" 
+                    WHERE id = ${decoded.userId}
+                    LIMIT 1
+                `;
+                user = result && result.length > 0 ? result[0] : null;
+            } else {
+                throw err;
+            }
+        }
 
         if (!user) {
             return apiResponse.error(res, 'User not found.', 401);
@@ -288,9 +320,26 @@ export const refreshToken = async (req, res) => {
  */
 export const getProfile = async (req, res) => {
     try {
-        const user = await prisma.user.findUnique({
-            where: { id: req.user.id }
-        });
+        // Use raw query to avoid NIM column issues
+        let user;
+        try {
+            user = await prisma.user.findUnique({
+                where: { id: req.user.id }
+            });
+        } catch (err) {
+            if (err.code === 'P2022' && err.message.includes('nim')) {
+                // NIM column doesn't exist, use raw query
+                const result = await prisma.$queryRaw`
+                    SELECT id, email, password, name, is_admin, created_at 
+                    FROM "public"."users" 
+                    WHERE id = ${req.user.id}
+                    LIMIT 1
+                `;
+                user = result && result.length > 0 ? result[0] : null;
+            } else {
+                throw err;
+            }
+        }
 
         if (!user) {
             return apiResponse.error(res, 'User not found.', 404);
