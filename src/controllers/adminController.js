@@ -1054,23 +1054,53 @@ export const getStudents = async (req, res) => {
             })
         };
 
-        const [students, total] = await Promise.all([
-            prisma.user.findMany({
-                where,
-                select: {
-                    id: true,
-                    email: true,
-                    name: true,
-                    nim: true,
-                    created_at: true,
-                    _count: { select: { enrollments: true } }
-                },
-                orderBy: { created_at: 'desc' },
-                skip,
-                take: limit
-            }),
-            prisma.user.count({ where })
-        ]);
+        let students, total;
+        
+        try {
+            // Try with NIM field first
+            [students, total] = await Promise.all([
+                prisma.user.findMany({
+                    where,
+                    select: {
+                        id: true,
+                        email: true,
+                        name: true,
+                        nim: true,
+                        created_at: true,
+                        _count: { select: { enrollments: true } }
+                    },
+                    orderBy: { created_at: 'desc' },
+                    skip,
+                    take: limit
+                }),
+                prisma.user.count({ where })
+            ]);
+        } catch (err) {
+            // If NIM column doesn't exist, retry without it
+            if (err.code === 'P2022' && err.message.includes('nim')) {
+                [students, total] = await Promise.all([
+                    prisma.user.findMany({
+                        where,
+                        select: {
+                            id: true,
+                            email: true,
+                            name: true,
+                            created_at: true,
+                            _count: { select: { enrollments: true } }
+                        },
+                        orderBy: { created_at: 'desc' },
+                        skip,
+                        take: limit
+                    }),
+                    prisma.user.count({ where })
+                ]);
+                
+                // Add nim: null for consistency
+                students = students.map(s => ({ ...s, nim: null }));
+            } else {
+                throw err;
+            }
+        }
 
         return apiResponse.success(res, {
             data: students,
@@ -1117,16 +1147,35 @@ export const resetStudentPassword = async (req, res) => {
         const hashedPassword = await bcrypt.hash(newPassword, 12);
 
         // Update password
-        const updated = await prisma.user.update({
-            where: { id: parseInt(studentId) },
-            data: { password: hashedPassword },
-            select: {
-                id: true,
-                email: true,
-                name: true,
-                nim: true
+        let updated;
+        try {
+            updated = await prisma.user.update({
+                where: { id: parseInt(studentId) },
+                data: { password: hashedPassword },
+                select: {
+                    id: true,
+                    email: true,
+                    name: true,
+                    nim: true
+                }
+            });
+        } catch (err) {
+            // If NIM column doesn't exist, retry without it
+            if (err.code === 'P2022' && err.message.includes('nim')) {
+                updated = await prisma.user.update({
+                    where: { id: parseInt(studentId) },
+                    data: { password: hashedPassword },
+                    select: {
+                        id: true,
+                        email: true,
+                        name: true
+                    }
+                });
+                updated.nim = null;
+            } else {
+                throw err;
             }
-        });
+        }
 
         return apiResponse.success(res, updated, 'Student password reset successfully.');
     } catch (error) {
