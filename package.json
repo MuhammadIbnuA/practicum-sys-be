@@ -7,8 +7,8 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "build": "prisma generate && prisma migrate deploy",
-    "vercel-build": "prisma generate && prisma migrate deploy",
+    "build": "prisma generate && prisma db push --skip-generate",
+    "vercel-build": "prisma generate && prisma db push --skip-generate",
     "postinstall": "prisma generate",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
