@@ -1,9 +1,13 @@
 {
     "version": 2,
+    "buildCommand": "npm run build",
     "builds": [
         {
             "src": "server.js",
-            "use": "@vercel/node"
+            "use": "@vercel/node",
+            "config": {
+                "includeFiles": "prisma/**"
+            }
         }
     ],
     "routes": [
@@ -11,5 +15,8 @@
             "src": "/(.*)",
             "dest": "server.js"
         }
-    ]
+    ],
+    "env": {
+        "NODE_ENV": "production"
+    }
 }
