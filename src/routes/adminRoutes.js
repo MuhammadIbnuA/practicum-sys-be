@@ -43,6 +43,13 @@ import {
     resetStudentPassword,
     deleteStudent
 } from '../controllers/adminController.js';
+import {
+    // Payment Management
+    getPendingPayments,
+    verifyPayment,
+    rejectPayment,
+    getPaymentStats
+} from '../controllers/paymentController.js';
 
 const router = Router();
 
@@ -268,6 +275,38 @@ router.post('/students/:studentId/reset-password', resetStudentPassword);
  * @access  Admin
  */
 router.delete('/students/:studentId', deleteStudent);
+
+// =============================================================================
+// PAYMENT MANAGEMENT
+// =============================================================================
+
+/**
+ * @route   GET /api/admin/payments
+ * @desc    Get all payments (filter by status)
+ * @access  Admin
+ */
+router.get('/payments', getPendingPayments);
+
+/**
+ * @route   PUT /api/admin/payments/:paymentId/verify
+ * @desc    Verify payment and create enrollment
+ * @access  Admin
+ */
+router.put('/payments/:paymentId/verify', verifyPayment);
+
+/**
+ * @route   PUT /api/admin/payments/:paymentId/reject
+ * @desc    Reject payment
+ * @access  Admin
+ */
+router.put('/payments/:paymentId/reject', rejectPayment);
+
+/**
+ * @route   GET /api/admin/payments/stats
+ * @desc    Get payment statistics
+ * @access  Admin
+ */
+router.get('/payments/stats', getPaymentStats);
 
 export default router;
 
