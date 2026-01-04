@@ -289,6 +289,27 @@ async function main() {
     await prisma.assistantAttendance.createMany({ data: checkInData, skipDuplicates: true });
     console.log(`✓ Assistant Check-ins: ${checkInData.length}`);
 
+    // 13. SAMPLE PAYMENTS (for testing payment system)
+    const paymentData = [];
+    const enrollableStudentsForPayment = users.slice(10, 20); // First 10 enrollable students
+    const classesForPayment = classes.slice(0, 5); // First 5 classes
+    
+    for (let i = 0; i < enrollableStudentsForPayment.length; i++) {
+        const classIdx = i % classesForPayment.length;
+        paymentData.push({
+            student_id: enrollableStudentsForPayment[i].id,
+            class_id: classesForPayment[classIdx].id,
+            amount: 5000,
+            proof_file_name: `bukti_transfer_${i + 1}.jpg`,
+            proof_file_url: 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/2wBDAQkJCQwLDBgNDRgyIRwhMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjL/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8VAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCwAA8A/9k=',
+            status: i % 3 === 0 ? 'VERIFIED' : (i % 3 === 1 ? 'PENDING' : 'REJECTED'),
+            verified_by_id: i % 3 === 0 ? 1 : null, // Admin verified some
+            verified_at: i % 3 === 0 ? new Date() : null
+        });
+    }
+    await prisma.payment.createMany({ data: paymentData, skipDuplicates: true });
+    console.log(`✓ Sample Payments: ${paymentData.length}`);
+
     // SUMMARY
     console.log('\n' + '='.repeat(50));
     console.log('         SEEDING COMPLETE');
@@ -301,11 +322,17 @@ async function main() {
    Enrollments:    ${await prisma.enrollment.count()}
    Attendances:    ${await prisma.studentAttendance.count()}
    Permissions:    ${await prisma.permissionRequest.count()}
+   Payments:       ${await prisma.payment.count()}
 
 🔐 LOGIN:
    Admin:    admin@practicum.com / admin123
    Students: student1@student.com ... / password123
    (student1-10 are also assistants)
+
+💳 PAYMENT STATUS:
+   - Some payments are VERIFIED (auto-enrolled)
+   - Some payments are PENDING (waiting for admin verification)
+   - Some payments are REJECTED (for testing rejection flow)
 `);
     console.log('='.repeat(50));
 }
