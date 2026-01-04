@@ -36,43 +36,35 @@ export const submitPayment = async (req, res) => {
             return apiResponse.error(res, 'Class not found.', 404);
         }
 
-        try {
-            // Create or update payment
-            const payment = await prisma.payment.upsert({
-                where: {
-                    student_id_class_id: {
-                        student_id: studentId,
-                        class_id: parseInt(classId)
-                    }
-                },
-                update: {
-                    proof_file_name: proofFileName,
-                    proof_file_url: proofFileData,
-                    status: 'PENDING',
-                    updated_at: new Date()
-                },
-                create: {
+        // Create or update payment
+        const payment = await prisma.payment.upsert({
+            where: {
+                student_id_class_id: {
                     student_id: studentId,
-                    class_id: parseInt(classId),
-                    amount: PAYMENT_AMOUNT,
-                    proof_file_name: proofFileName,
-                    proof_file_url: proofFileData,
-                    status: 'PENDING'
-                },
-                include: {
-                    student: { select: { id: true, name: true, email: true } },
-                    class: { include: { course: true } }
+                    class_id: parseInt(classId)
                 }
-            });
-
-            return apiResponse.success(res, payment, 'Payment proof submitted. Waiting for admin verification.', 201);
-        } catch (err) {
-            // If payments table doesn't exist, return error message
-            if (err.code === 'P2021' && err.message.includes('payments')) {
-                return apiResponse.error(res, 'Payment system is not yet available. Please contact administrator.', 503);
+            },
+            update: {
+                proof_file_name: proofFileName,
+                proof_file_url: proofFileData,
+                status: 'PENDING',
+                updated_at: new Date()
+            },
+            create: {
+                student_id: studentId,
+                class_id: parseInt(classId),
+                amount: PAYMENT_AMOUNT,
+                proof_file_name: proofFileName,
+                proof_file_url: proofFileData,
+                status: 'PENDING'
+            },
+            include: {
+                student: { select: { id: true, name: true, email: true } },
+                class: { include: { course: true } }
             }
-            throw err;
-        }
+        });
+
+        return apiResponse.success(res, payment, 'Payment proof submitted. Waiting for admin verification.', 201);
     } catch (error) {
         console.error('Submit payment error:', error);
         return apiResponse.error(res, 'Internal server error.', 500);
@@ -88,31 +80,23 @@ export const getPaymentStatus = async (req, res) => {
         const { classId } = req.params;
         const studentId = req.user.id;
 
-        try {
-            const payment = await prisma.payment.findUnique({
-                where: {
-                    student_id_class_id: {
-                        student_id: studentId,
-                        class_id: parseInt(classId)
-                    }
-                },
-                include: {
-                    class: { include: { course: true } }
+        const payment = await prisma.payment.findUnique({
+            where: {
+                student_id_class_id: {
+                    student_id: studentId,
+                    class_id: parseInt(classId)
                 }
-            });
-
-            if (!payment) {
-                return apiResponse.success(res, null, 'No payment found for this class.');
+            },
+            include: {
+                class: { include: { course: true } }
             }
+        });
 
-            return apiResponse.success(res, payment, 'Payment status retrieved.');
-        } catch (err) {
-            // If payments table doesn't exist, return null
-            if (err.code === 'P2021' && err.message.includes('payments')) {
-                return apiResponse.success(res, null, 'No payment found for this class.');
-            }
-            throw err;
+        if (!payment) {
+            return apiResponse.success(res, null, 'No payment found for this class.');
         }
+
+        return apiResponse.success(res, payment, 'Payment status retrieved.');
     } catch (error) {
         console.error('Get payment status error:', error);
         return apiResponse.error(res, 'Internal server error.', 500);
@@ -130,34 +114,23 @@ export const getMyPayments = async (req, res) => {
         const limit = parseInt(req.query.limit) || 50;
         const skip = (page - 1) * limit;
 
-        try {
-            const [payments, total] = await Promise.all([
-                prisma.payment.findMany({
-                    where: { student_id: studentId },
-                    include: {
-                        class: { include: { course: true, time_slot: true, room: true } }
-                    },
-                    orderBy: { created_at: 'desc' },
-                    skip,
-                    take: limit
-                }),
-                prisma.payment.count({ where: { student_id: studentId } })
-            ]);
+        const [payments, total] = await Promise.all([
+            prisma.payment.findMany({
+                where: { student_id: studentId },
+                include: {
+                    class: { include: { course: true, time_slot: true, room: true } }
+                },
+                orderBy: { created_at: 'desc' },
+                skip,
+                take: limit
+            }),
+            prisma.payment.count({ where: { student_id: studentId } })
+        ]);
 
-            return apiResponse.success(res, {
-                data: payments,
-                pagination: { page, limit, total, pages: Math.ceil(total / limit) }
-            }, 'Payments retrieved.');
-        } catch (err) {
-            // If payments table doesn't exist, return empty list
-            if (err.code === 'P2021' && err.message.includes('payments')) {
-                return apiResponse.success(res, {
-                    data: [],
-                    pagination: { page, limit, total: 0, pages: 0 }
-                }, 'Payments retrieved.');
-            }
-            throw err;
-        }
+        return apiResponse.success(res, {
+            data: payments,
+            pagination: { page, limit, total, pages: Math.ceil(total / limit) }
+        }, 'Payments retrieved.');
     } catch (error) {
         console.error('Get my payments error:', error);
         return apiResponse.error(res, 'Internal server error.', 500);
@@ -179,7 +152,21 @@ export const getPendingPayments = async (req, res) => {
         const limit = parseInt(req.query.limit) || 50;
         const skip = (page - 1) * limit;
 
-        const where = {};
+        // Get active semester
+        const activeSemester = await prisma.semester.findFirst({
+            where: { is_active: true }
+        });
+
+        if (!activeSemester) {
+            return apiResponse.success(res, {
+                data: [],
+                pagination: { page, limit, total: 0, pages: 0 }
+            }, 'Payments retrieved.');
+        }
+
+        const where = {
+            class: { semester_id: activeSemester.id }
+        };
         if (status) {
             where.status = status.toUpperCase();
         }
@@ -203,10 +190,13 @@ export const getPendingPayments = async (req, res) => {
             ]);
         } catch (err) {
             // If payments table doesn't exist, return empty list
-            if (err.code === 'P2021' && err.message.includes('payments')) {
+            if (err.code === 'P2021') {
+                console.log('Payment table does not exist yet');
                 payments = [];
                 total = 0;
             } else {
+                // Log the actual error for debugging
+                console.error('Payment query error:', err.code, err.message);
                 throw err;
             }
         }
@@ -230,69 +220,61 @@ export const verifyPayment = async (req, res) => {
         const { paymentId } = req.params;
         const adminId = req.user.id;
 
-        try {
-            const payment = await prisma.payment.findUnique({
-                where: { id: parseInt(paymentId) },
-                include: { class: true }
-            });
+        const payment = await prisma.payment.findUnique({
+            where: { id: parseInt(paymentId) },
+            include: { class: true }
+        });
 
-            if (!payment) {
-                return apiResponse.error(res, 'Payment not found.', 404);
-            }
-
-            if (payment.status !== 'PENDING') {
-                return apiResponse.error(res, 'Payment is not pending.', 400);
-            }
-
-            // Check class quota
-            const enrollmentCount = await prisma.enrollment.count({
-                where: { class_id: payment.class_id }
-            });
-
-            if (enrollmentCount >= payment.class.quota) {
-                return apiResponse.error(res, 'Class is full. Cannot enroll student.', 409);
-            }
-
-            // Verify payment and create enrollment in transaction
-            const result = await prisma.$transaction(async (tx) => {
-                // Update payment status
-                const updatedPayment = await tx.payment.update({
-                    where: { id: parseInt(paymentId) },
-                    data: {
-                        status: 'VERIFIED',
-                        verified_by_id: adminId,
-                        verified_at: new Date()
-                    }
-                });
-
-                // Create enrollment
-                const enrollment = await tx.enrollment.create({
-                    data: {
-                        class_id: payment.class_id,
-                        user_id: payment.student_id
-                    },
-                    include: {
-                        class: { include: { course: true } },
-                        user: { select: { id: true, name: true, email: true } }
-                    }
-                });
-
-                return { payment: updatedPayment, enrollment };
-            });
-
-            return apiResponse.success(res, result, 'Payment verified and student enrolled.');
-        } catch (err) {
-            // If payments table doesn't exist, return error
-            if (err.code === 'P2021' && err.message.includes('payments')) {
-                return apiResponse.error(res, 'Payment system is not yet available.', 503);
-            }
-            if (err.code === 'P2002') {
-                return apiResponse.error(res, 'Student is already enrolled in this class.', 409);
-            }
-            throw err;
+        if (!payment) {
+            return apiResponse.error(res, 'Payment not found.', 404);
         }
+
+        if (payment.status !== 'PENDING') {
+            return apiResponse.error(res, 'Payment is not pending.', 400);
+        }
+
+        // Check class quota
+        const enrollmentCount = await prisma.enrollment.count({
+            where: { class_id: payment.class_id }
+        });
+
+        if (enrollmentCount >= payment.class.quota) {
+            return apiResponse.error(res, 'Class is full. Cannot enroll student.', 409);
+        }
+
+        // Verify payment and create enrollment in transaction
+        const result = await prisma.$transaction(async (tx) => {
+            // Update payment status
+            const updatedPayment = await tx.payment.update({
+                where: { id: parseInt(paymentId) },
+                data: {
+                    status: 'VERIFIED',
+                    verified_by_id: adminId,
+                    verified_at: new Date()
+                }
+            });
+
+            // Create enrollment
+            const enrollment = await tx.enrollment.create({
+                data: {
+                    class_id: payment.class_id,
+                    user_id: payment.student_id
+                },
+                include: {
+                    class: { include: { course: true } },
+                    user: { select: { id: true, name: true, email: true } }
+                }
+            });
+
+            return { payment: updatedPayment, enrollment };
+        });
+
+        return apiResponse.success(res, result, 'Payment verified and student enrolled.');
     } catch (error) {
         console.error('Verify payment error:', error);
+        if (error.code === 'P2002') {
+            return apiResponse.error(res, 'Student is already enrolled in this class.', 409);
+        }
         return apiResponse.error(res, 'Internal server error.', 500);
     }
 };
@@ -306,36 +288,28 @@ export const rejectPayment = async (req, res) => {
         const { paymentId } = req.params;
         const { reason } = req.body;
 
-        try {
-            const payment = await prisma.payment.findUnique({
-                where: { id: parseInt(paymentId) }
-            });
+        const payment = await prisma.payment.findUnique({
+            where: { id: parseInt(paymentId) }
+        });
 
-            if (!payment) {
-                return apiResponse.error(res, 'Payment not found.', 404);
-            }
-
-            if (payment.status !== 'PENDING') {
-                return apiResponse.error(res, 'Payment is not pending.', 400);
-            }
-
-            const updated = await prisma.payment.update({
-                where: { id: parseInt(paymentId) },
-                data: { status: 'REJECTED' },
-                include: {
-                    student: { select: { id: true, name: true, email: true } },
-                    class: { include: { course: true } }
-                }
-            });
-
-            return apiResponse.success(res, updated, 'Payment rejected.');
-        } catch (err) {
-            // If payments table doesn't exist, return error
-            if (err.code === 'P2021' && err.message.includes('payments')) {
-                return apiResponse.error(res, 'Payment system is not yet available.', 503);
-            }
-            throw err;
+        if (!payment) {
+            return apiResponse.error(res, 'Payment not found.', 404);
         }
+
+        if (payment.status !== 'PENDING') {
+            return apiResponse.error(res, 'Payment is not pending.', 400);
+        }
+
+        const updated = await prisma.payment.update({
+            where: { id: parseInt(paymentId) },
+            data: { status: 'REJECTED' },
+            include: {
+                student: { select: { id: true, name: true, email: true } },
+                class: { include: { course: true } }
+            }
+        });
+
+        return apiResponse.success(res, updated, 'Payment rejected.');
     } catch (error) {
         console.error('Reject payment error:', error);
         return apiResponse.error(res, 'Internal server error.', 500);
@@ -348,31 +322,38 @@ export const rejectPayment = async (req, res) => {
  */
 export const getPaymentStats = async (req, res) => {
     try {
-        try {
-            const stats = await prisma.payment.groupBy({
-                by: ['status'],
-                _count: true
-            });
+        // Get active semester
+        const activeSemester = await prisma.semester.findFirst({
+            where: { is_active: true }
+        });
 
-            const totalAmount = await prisma.payment.aggregate({
-                where: { status: 'VERIFIED' },
-                _sum: { amount: true }
-            });
-
+        if (!activeSemester) {
             return apiResponse.success(res, {
-                byStatus: stats,
-                totalVerified: totalAmount._sum.amount || 0
+                byStatus: [],
+                totalVerified: 0
             }, 'Payment statistics retrieved.');
-        } catch (err) {
-            // If payments table doesn't exist, return empty stats
-            if (err.code === 'P2021' && err.message.includes('payments')) {
-                return apiResponse.success(res, {
-                    byStatus: [],
-                    totalVerified: 0
-                }, 'Payment statistics retrieved.');
-            }
-            throw err;
         }
+
+        const stats = await prisma.payment.groupBy({
+            by: ['status'],
+            where: {
+                class: { semester_id: activeSemester.id }
+            },
+            _count: true
+        });
+
+        const totalAmount = await prisma.payment.aggregate({
+            where: { 
+                status: 'VERIFIED',
+                class: { semester_id: activeSemester.id }
+            },
+            _sum: { amount: true }
+        });
+
+        return apiResponse.success(res, {
+            byStatus: stats,
+            totalVerified: totalAmount._sum.amount || 0
+        }, 'Payment statistics retrieved.');
     } catch (error) {
         console.error('Get payment stats error:', error);
         return apiResponse.error(res, 'Internal server error.', 500);

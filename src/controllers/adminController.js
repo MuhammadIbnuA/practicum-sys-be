@@ -615,6 +615,15 @@ export const getPermissions = async (req, res) => {
     try {
         const { status } = req.query;
 
+        // Get active semester
+        const activeSemester = await prisma.semester.findFirst({
+            where: { is_active: true }
+        });
+
+        if (!activeSemester) {
+            return apiResponse.success(res, [], 'No active semester found.');
+        }
+
         const where = {};
         if (status) {
             where.status = status.toUpperCase();
@@ -626,14 +635,20 @@ export const getPermissions = async (req, res) => {
                 student: { select: { id: true, name: true, email: true } },
                 session: {
                     include: {
-                        class: { include: { course: true, time_slot: true, room: true } }
+                        class: { 
+                            include: { course: true, time_slot: true, room: true },
+                            where: { semester_id: activeSemester.id }
+                        }
                     }
                 }
             },
             orderBy: { created_at: 'desc' }
         });
 
-        return apiResponse.success(res, permissions, 'Permission requests retrieved.');
+        // Filter to only include permissions for active semester classes
+        const filtered = permissions.filter(p => p.session?.class);
+
+        return apiResponse.success(res, filtered, 'Permission requests retrieved.');
     } catch (error) {
         console.error('Get permissions error:', error);
         return apiResponse.error(res, 'Internal server error.', 500);
@@ -748,6 +763,15 @@ export const getAssistantLogs = async (req, res) => {
     try {
         const { class_id, user_id } = req.query;
 
+        // Get active semester
+        const activeSemester = await prisma.semester.findFirst({
+            where: { is_active: true }
+        });
+
+        if (!activeSemester) {
+            return apiResponse.success(res, [], 'No active semester found.');
+        }
+
         const where = {};
         if (class_id) where.session = { class_id: parseInt(class_id) };
         if (user_id) where.user_id = parseInt(user_id);
@@ -758,14 +782,20 @@ export const getAssistantLogs = async (req, res) => {
                 user: { select: { id: true, name: true, email: true } },
                 session: {
                     include: {
-                        class: { include: { course: true } }
+                        class: { 
+                            include: { course: true },
+                            where: { semester_id: activeSemester.id }
+                        }
                     }
                 }
             },
             orderBy: { check_in_time: 'desc' }
         });
 
-        return apiResponse.success(res, logs, 'Assistant logs retrieved.');
+        // Filter to only include logs for active semester classes
+        const filtered = logs.filter(log => log.session?.class);
+
+        return apiResponse.success(res, filtered, 'Assistant logs retrieved.');
     } catch (error) {
         console.error('Get assistant logs error:', error);
         return apiResponse.error(res, 'Internal server error.', 500);
@@ -839,7 +869,17 @@ export const validateAssistant = async (req, res) => {
  */
 export const getAllClasses = async (req, res) => {
     try {
+        // Get active semester
+        const activeSemester = await prisma.semester.findFirst({
+            where: { is_active: true }
+        });
+
+        if (!activeSemester) {
+            return apiResponse.success(res, [], 'No active semester found.');
+        }
+
         const classes = await prisma.class.findMany({
+            where: { semester_id: activeSemester.id },
             include: {
                 course: true,
                 semester: true,
@@ -852,7 +892,7 @@ export const getAllClasses = async (req, res) => {
                 },
                 _count: { select: { enrollments: true } }
             },
-            orderBy: [{ semester_id: 'desc' }, { course_id: 'asc' }, { name: 'asc' }]
+            orderBy: [{ course_id: 'asc' }, { name: 'asc' }]
         });
 
         const result = classes.map(c => ({

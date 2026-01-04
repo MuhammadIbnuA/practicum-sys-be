@@ -24,9 +24,24 @@ export const getSchedule = async (req, res) => {
         const limit = parseInt(req.query.limit) || 50;
         const skip = (page - 1) * limit;
 
+        // Get active semester
+        const activeSemester = await prisma.semester.findFirst({
+            where: { is_active: true }
+        });
+
+        if (!activeSemester) {
+            return apiResponse.success(res, {
+                data: [],
+                pagination: { page, limit, total: 0, pages: 0 }
+            }, 'Teaching schedule retrieved.');
+        }
+
         const [assignments, total] = await Promise.all([
             prisma.classAssistant.findMany({
-                where: { user_id: userId },
+                where: { 
+                    user_id: userId,
+                    class: { semester_id: activeSemester.id }
+                },
                 select: {
                     class: {
                         select: {
@@ -50,7 +65,12 @@ export const getSchedule = async (req, res) => {
                 skip,
                 take: limit
             }),
-            prisma.classAssistant.count({ where: { user_id: userId } })
+            prisma.classAssistant.count({ 
+                where: { 
+                    user_id: userId,
+                    class: { semester_id: activeSemester.id }
+                }
+            })
         ]);
 
         const schedule = assignments.map(a => ({
