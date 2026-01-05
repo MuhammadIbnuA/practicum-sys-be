@@ -636,8 +636,7 @@ export const getPermissions = async (req, res) => {
                 session: {
                     include: {
                         class: { 
-                            include: { course: true, time_slot: true, room: true },
-                            where: { semester_id: activeSemester.id }
+                            include: { course: true, time_slot: true, room: true }
                         }
                     }
                 }
@@ -646,7 +645,9 @@ export const getPermissions = async (req, res) => {
         });
 
         // Filter to only include permissions for active semester classes
-        const filtered = permissions.filter(p => p.session?.class);
+        const filtered = permissions.filter(p => 
+            p.session?.class && p.session.class.semester_id === activeSemester.id
+        );
 
         return apiResponse.success(res, filtered, 'Permission requests retrieved.');
     } catch (error) {
@@ -783,8 +784,7 @@ export const getAssistantLogs = async (req, res) => {
                 session: {
                     include: {
                         class: { 
-                            include: { course: true },
-                            where: { semester_id: activeSemester.id }
+                            include: { course: true }
                         }
                     }
                 }
@@ -793,7 +793,9 @@ export const getAssistantLogs = async (req, res) => {
         });
 
         // Filter to only include logs for active semester classes
-        const filtered = logs.filter(log => log.session?.class);
+        const filtered = logs.filter(log => 
+            log.session?.class && log.session.class.semester_id === activeSemester.id
+        );
 
         return apiResponse.success(res, filtered, 'Assistant logs retrieved.');
     } catch (error) {
