@@ -236,91 +236,12 @@ export const getOpenClasses = async (req, res) => {
 };
 
 /**
- * Enroll in a class
+ * Enroll in a class (DEPRECATED - Now requires payment)
  * POST /api/student/enroll
+ * @deprecated Use payment system instead
  */
 export const enrollClass = async (req, res) => {
-    try {
-        const userId = req.user.id;
-        const { classId } = req.body;
-
-        if (!classId) {
-            return apiResponse.error(res, 'Class ID is required.', 400);
-        }
-
-        const targetClass = await prisma.class.findUnique({
-            where: { id: parseInt(classId) },
-            include: {
-                course: true,
-                semester: true,
-                time_slot: true,
-                room: true,
-                _count: { select: { enrollments: true } }
-            }
-        });
-
-        if (!targetClass) {
-            return apiResponse.error(res, 'Class not found.', 404);
-        }
-
-        if (!targetClass.semester.is_active) {
-            return apiResponse.error(res, 'Cannot enroll in classes from inactive semesters.', 400);
-        }
-
-        if (targetClass._count.enrollments >= targetClass.quota) {
-            return apiResponse.error(res, 'Class is full. No available quota.', 400);
-        }
-
-        // Check duplicate course enrollment
-        const existingEnrollment = await prisma.enrollment.findFirst({
-            where: {
-                user_id: userId,
-                class: {
-                    course_id: targetClass.course_id,
-                    semester_id: targetClass.semester_id
-                }
-            },
-            include: { class: true }
-        });
-
-        if (existingEnrollment) {
-            return apiResponse.error(res, `Already enrolled in ${existingEnrollment.class.name} for this course.`, 409);
-        }
-
-        const enrollment = await prisma.$transaction(async (tx) => {
-            const currentCount = await tx.enrollment.count({
-                where: { class_id: parseInt(classId) }
-            });
-
-            if (currentCount >= targetClass.quota) {
-                throw new Error('QUOTA_EXCEEDED');
-            }
-
-            return tx.enrollment.create({
-                data: {
-                    class_id: parseInt(classId),
-                    user_id: userId
-                },
-                include: {
-                    class: { include: { course: true, semester: true, time_slot: true, room: true } }
-                }
-            });
-        });
-
-        return apiResponse.success(res, {
-            ...enrollment,
-            class: { ...enrollment.class, day_name: DAY_NAMES[enrollment.class.day_of_week] }
-        }, 'Successfully enrolled.', 201);
-    } catch (error) {
-        console.error('Enroll class error:', error);
-        if (error.message === 'QUOTA_EXCEEDED') {
-            return apiResponse.error(res, 'Class is full. No available quota.', 400);
-        }
-        if (error.code === 'P2002') {
-            return apiResponse.error(res, 'Already enrolled in this class.', 409);
-        }
-        return apiResponse.error(res, 'Internal server error.', 500);
-    }
+    return apiResponse.error(res, 'Direct enrollment is disabled. Please use the payment system to enroll in classes.', 403);
 };
 
 // =============================================================================
