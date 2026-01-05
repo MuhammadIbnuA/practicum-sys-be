@@ -6,8 +6,8 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
 }
 
@@ -16,13 +16,13 @@ datasource db {
 // =============================================================================
 
 enum AttendanceStatus {
-  PENDING     // Submitted by student, awaiting approval
-  HADIR       // Approved present
-  ALPHA       // Absent without permission
+  PENDING // Submitted by student, awaiting approval
+  HADIR // Approved present
+  ALPHA // Absent without permission
   IZIN_SAKIT
   IZIN_LAIN
   IZIN_KAMPUS
-  REJECTED    // Submission rejected
+  REJECTED // Submission rejected
 }
 
 enum SessionType {
@@ -37,10 +37,10 @@ enum PermissionStatus {
 }
 
 enum PaymentStatus {
-  PENDING      // Waiting for payment proof
-  VERIFIED     // Admin verified payment
-  REJECTED     // Payment rejected
-  EXPIRED      // Payment request expired
+  PENDING // Waiting for payment proof
+  VERIFIED // Admin verified payment
+  REJECTED // Payment rejected
+  EXPIRED // Payment request expired
 }
 
 // =============================================================================
@@ -50,7 +50,7 @@ enum PaymentStatus {
 model User {
   id         Int      @id @default(autoincrement())
   email      String   @unique
-  nim        String?  @unique  // Nomor Induk Siswa (Student ID Number)
+  nim        String?  @unique // Nomor Induk Siswa (Student ID Number)
   password   String
   name       String
   is_admin   Boolean  @default(false)
@@ -64,9 +64,12 @@ model User {
   approvedAttendances  StudentAttendance[]   @relation("ApprovedBy")
   payments             Payment[]
   verifiedPayments     Payment[]             @relation("VerifiedPayments")
+  faceData             FaceData?
+  faceAttendanceLogs   FaceAttendanceLog[]   @relation("FaceAttendanceStudent")
+  recognizedFaceLogs   FaceAttendanceLog[]   @relation("FaceAttendanceRecognizer")
 
   @@index([email]) // Performance: user lookup by email (login)
-  @@index([nim])   // Performance: user lookup by NIM
+  @@index([nim]) // Performance: user lookup by NIM
   @@index([is_admin]) // Performance: filter admin users
   @@map("users")
 }
@@ -76,9 +79,9 @@ model User {
 // =============================================================================
 
 model Semester {
-  id        Int      @id @default(autoincrement())
-  name      String   // e.g., "Ganjil 2024"
-  is_active Boolean  @default(false)
+  id        Int     @id @default(autoincrement())
+  name      String // e.g., "Ganjil 2024"
+  is_active Boolean @default(false)
 
   // Relations
   classes Class[]
@@ -108,10 +111,10 @@ model Course {
 
 model TimeSlot {
   id          Int    @id @default(autoincrement())
-  slot_number Int    @unique  // 1-6
-  start_time  String          // "07:00"
-  end_time    String          // "08:40"
-  label       String          // "Sesi 1 (07:00-08:40)"
+  slot_number Int    @unique // 1-6
+  start_time  String // "07:00"
+  end_time    String // "08:40"
+  label       String // "Sesi 1 (07:00-08:40)"
 
   // Relations
   classes Class[]
@@ -125,8 +128,8 @@ model TimeSlot {
 
 model Room {
   id   Int    @id @default(autoincrement())
-  code String @unique  // "PSI", "SBTI"
-  name String          // "Laboratorium PSI"
+  code String @unique // "PSI", "SBTI"
+  name String // "Laboratorium PSI"
 
   // Relations
   classes Class[]
@@ -139,21 +142,21 @@ model Room {
 // =============================================================================
 
 model Class {
-  id           Int @id @default(autoincrement())
+  id           Int    @id @default(autoincrement())
   course_id    Int
   semester_id  Int
   name         String // e.g., "Kelas A"
   quota        Int
-  day_of_week  Int    // 1=Monday, 2=Tuesday, ..., 5=Friday
+  day_of_week  Int // 1=Monday, 2=Tuesday, ..., 5=Friday
   time_slot_id Int
   room_id      Int
 
   // Relations
-  course     Course     @relation(fields: [course_id], references: [id], onDelete: Cascade)
-  semester   Semester   @relation(fields: [semester_id], references: [id], onDelete: Cascade)
-  time_slot  TimeSlot   @relation(fields: [time_slot_id], references: [id], onDelete: Cascade)
-  room       Room       @relation(fields: [room_id], references: [id], onDelete: Cascade)
-  sessions   ClassSession[]
+  course      Course           @relation(fields: [course_id], references: [id], onDelete: Cascade)
+  semester    Semester         @relation(fields: [semester_id], references: [id], onDelete: Cascade)
+  time_slot   TimeSlot         @relation(fields: [time_slot_id], references: [id], onDelete: Cascade)
+  room        Room             @relation(fields: [room_id], references: [id], onDelete: Cascade)
+  sessions    ClassSession[]
   enrollments Enrollment[]
   assistants  ClassAssistant[]
   payments    Payment[]
@@ -190,17 +193,18 @@ model ClassAssistant {
 model ClassSession {
   id             Int         @id @default(autoincrement())
   class_id       Int
-  session_number Int         // 1-11
+  session_number Int // 1-11
   date           DateTime?
   topic          String?
   type           SessionType @default(REGULAR)
   is_finalized   Boolean     @default(false)
 
   // Relations
-  class               Class                 @relation(fields: [class_id], references: [id], onDelete: Cascade)
-  studentAttendances  StudentAttendance[]
+  class                Class                 @relation(fields: [class_id], references: [id], onDelete: Cascade)
+  studentAttendances   StudentAttendance[]
   assistantAttendances AssistantAttendance[]
-  permissionRequests  PermissionRequest[]
+  permissionRequests   PermissionRequest[]
+  faceAttendanceLogs   FaceAttendanceLog[]
 
   @@unique([class_id, session_number])
   @@index([class_id]) // Performance: queries by class
@@ -217,8 +221,8 @@ model Enrollment {
   enrolled_at DateTime @default(now())
 
   // Relations
-  class      Class               @relation(fields: [class_id], references: [id], onDelete: Cascade)
-  user       User                @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  class       Class               @relation(fields: [class_id], references: [id], onDelete: Cascade)
+  user        User                @relation(fields: [user_id], references: [id], onDelete: Cascade)
   attendances StudentAttendance[]
 
   @@id([class_id, user_id])
@@ -231,23 +235,23 @@ model Enrollment {
 // =============================================================================
 
 model StudentAttendance {
-  id                   Int              @id @default(autoincrement())
-  enrollment_class_id  Int
-  enrollment_user_id   Int
-  session_id           Int
-  status               AttendanceStatus @default(ALPHA)
-  grade                Float?
-  proof_file_url       String?
-  
+  id                  Int              @id @default(autoincrement())
+  enrollment_class_id Int
+  enrollment_user_id  Int
+  session_id          Int
+  status              AttendanceStatus @default(ALPHA)
+  grade               Float?
+  proof_file_url      String?
+
   // Submission workflow
-  submitted_at         DateTime?        // When student submitted
-  approved_by_id       Int?             // Assistant who approved
-  approved_at          DateTime?        // When approved
+  submitted_at   DateTime? // When student submitted
+  approved_by_id Int? // Assistant who approved
+  approved_at    DateTime? // When approved
 
   // Relations
-  enrollment Enrollment   @relation(fields: [enrollment_class_id, enrollment_user_id], references: [class_id, user_id], onDelete: Cascade)
-  session    ClassSession @relation(fields: [session_id], references: [id], onDelete: Cascade)
-  approved_by User?       @relation("ApprovedBy", fields: [approved_by_id], references: [id])
+  enrollment  Enrollment   @relation(fields: [enrollment_class_id, enrollment_user_id], references: [class_id, user_id], onDelete: Cascade)
+  session     ClassSession @relation(fields: [session_id], references: [id], onDelete: Cascade)
+  approved_by User?        @relation("ApprovedBy", fields: [approved_by_id], references: [id])
 
   @@unique([enrollment_class_id, enrollment_user_id, session_id])
   @@index([session_id]) // Performance: queries by session
@@ -260,10 +264,10 @@ model StudentAttendance {
 // =============================================================================
 
 model AssistantAttendance {
-  id            Int       @id @default(autoincrement())
+  id            Int              @id @default(autoincrement())
   user_id       Int
   session_id    Int
-  check_in_time DateTime  @default(now())
+  check_in_time DateTime         @default(now())
   status        AttendanceStatus @default(HADIR)
 
   // Relations
@@ -282,7 +286,7 @@ model PermissionRequest {
   id         Int              @id @default(autoincrement())
   student_id Int
   session_id Int
-  file_name  String           // Original filename
+  file_name  String // Original filename
   file_data  String           @db.Text // Base64 encoded file
   reason     String
   status     PermissionStatus @default(PENDING)
@@ -306,18 +310,18 @@ model Payment {
   id              Int           @id @default(autoincrement())
   student_id      Int
   class_id        Int
-  amount          Int           // IDR amount (5000)
-  proof_file_name String        // Original filename of transfer proof
+  amount          Int // IDR amount (5000)
+  proof_file_name String // Original filename of transfer proof
   proof_file_url  String        @db.Text // Base64 encoded file or URL
   status          PaymentStatus @default(PENDING)
-  verified_by_id  Int?          // Admin who verified
+  verified_by_id  Int? // Admin who verified
   verified_at     DateTime?
   created_at      DateTime      @default(now())
   updated_at      DateTime      @updatedAt
 
   // Relations
-  student    User   @relation(fields: [student_id], references: [id], onDelete: Cascade)
-  class      Class  @relation(fields: [class_id], references: [id], onDelete: Cascade)
+  student     User  @relation(fields: [student_id], references: [id], onDelete: Cascade)
+  class       Class @relation(fields: [class_id], references: [id], onDelete: Cascade)
   verified_by User? @relation("VerifiedPayments", fields: [verified_by_id], references: [id])
 
   @@unique([student_id, class_id]) // One payment per student per class
@@ -328,3 +332,46 @@ model Payment {
   @@map("payments")
 }
 
+// =============================================================================
+// FACE RECOGNITION MODELS
+// =============================================================================
+
+model FaceData {
+  id               Int       @id @default(autoincrement())
+  user_id          Int       @unique
+  face_descriptors Json // Array of 128-dimensional face descriptor vectors
+  sample_images    Json // Array of base64 image data (for backup/retraining)
+  sample_count     Int       @default(0)
+  is_trained       Boolean   @default(false)
+  trained_at       DateTime?
+  created_at       DateTime  @default(now())
+  updated_at       DateTime  @updatedAt
+
+  // Relations
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+  @@index([is_trained])
+  @@map("face_data")
+}
+
+model FaceAttendanceLog {
+  id               Int      @id @default(autoincrement())
+  student_id       Int
+  session_id       Int
+  confidence_score Float // 0.0 - 1.0 (similarity score)
+  captured_image   String   @db.Text // base64 of captured face for audit
+  device_info      String? // Browser/device information
+  recognized_by_id Int? // Assistant who was operating the scanner
+  created_at       DateTime @default(now())
+
+  // Relations
+  student       User         @relation("FaceAttendanceStudent", fields: [student_id], references: [id], onDelete: Cascade)
+  session       ClassSession @relation(fields: [session_id], references: [id], onDelete: Cascade)
+  recognized_by User?        @relation("FaceAttendanceRecognizer", fields: [recognized_by_id], references: [id])
+
+  @@index([student_id])
+  @@index([session_id])
+  @@index([created_at])
+  @@map("face_attendance_logs")
+}

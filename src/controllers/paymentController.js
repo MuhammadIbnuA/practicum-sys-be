@@ -5,6 +5,7 @@
 
 import prisma from '../lib/prisma.js';
 import { apiResponse } from '../utils/helpers.js';
+import { uploadBase64File, BUCKETS, deleteFile, parseMinioUrl } from '../services/minioService.js';
 
 const PAYMENT_AMOUNT = 5000; // IDR
 const PAYMENT_EXPIRY_DAYS = 7;
@@ -36,6 +37,31 @@ export const submitPayment = async (req, res) => {
             return apiResponse.error(res, 'Class not found.', 404);
         }
 
+        // Upload file to MinIO
+        const fileUrl = await uploadBase64File(
+            proofFileData,
+            BUCKETS.PAYMENTS,
+            `student-${studentId}-class-${classId}`
+        );
+
+        // Check if payment already exists
+        const existingPayment = await prisma.payment.findUnique({
+            where: {
+                student_id_class_id: {
+                    student_id: studentId,
+                    class_id: parseInt(classId)
+                }
+            }
+        });
+
+        // Delete old file if exists
+        if (existingPayment && existingPayment.proof_file_url) {
+            const parsed = parseMinioUrl(existingPayment.proof_file_url);
+            if (parsed) {
+                await deleteFile(parsed.bucket, parsed.filename);
+            }
+        }
+
         // Create or update payment
         const payment = await prisma.payment.upsert({
             where: {
@@ -46,7 +72,7 @@ export const submitPayment = async (req, res) => {
             },
             update: {
                 proof_file_name: proofFileName,
-                proof_file_url: proofFileData,
+                proof_file_url: fileUrl,
                 status: 'PENDING',
                 updated_at: new Date()
             },
@@ -55,7 +81,7 @@ export const submitPayment = async (req, res) => {
                 class_id: parseInt(classId),
                 amount: PAYMENT_AMOUNT,
                 proof_file_name: proofFileName,
-                proof_file_url: proofFileData,
+                proof_file_url: fileUrl,
                 status: 'PENDING'
             },
             include: {

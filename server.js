@@ -14,7 +14,11 @@ import adminRoutes from './src/routes/adminRoutes.js';
 import studentRoutes from './src/routes/studentRoutes.js';
 import teachingRoutes from './src/routes/teachingRoutes.js';
 import paymentRoutes from './src/routes/paymentRoutes.js';
+import faceRoutes from './src/routes/faceRoutes.js';
 import databaseRoutes from './src/routes/databaseRoutes.js';
+
+// Import services
+import { initializeBuckets } from './src/services/minioService.js';
 
 // Initialize Express app
 const app = express();
@@ -122,6 +126,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/student', studentRoutes);
 app.use('/api/teaching', teachingRoutes);
 app.use('/api/payment', paymentRoutes);
+app.use('/api', faceRoutes); // Face routes (includes /student/face, /teaching/face, /admin/face)
 app.use('/api/database', databaseRoutes);
 
 // =============================================================================
@@ -151,13 +156,16 @@ app.use((err, req, res, next) => {
 // =============================================================================
 
 if (process.env.NODE_ENV !== 'production') {
-    app.listen(PORT, () => {
+    app.listen(PORT, async () => {
         console.log('='.repeat(50));
         console.log('  Practicum Attendance Management System API');
         console.log('='.repeat(50));
         console.log(`  Server:      http://localhost:${PORT}`);
         console.log(`  Health:      http://localhost:${PORT}/api/health`);
         console.log('='.repeat(50));
+        
+        // Initialize MinIO buckets
+        await initializeBuckets();
     });
 }
 
