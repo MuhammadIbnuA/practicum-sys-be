@@ -15,6 +15,8 @@ import studentRoutes from './src/routes/studentRoutes.js';
 import teachingRoutes from './src/routes/teachingRoutes.js';
 import paymentRoutes from './src/routes/paymentRoutes.js';
 import faceRoutes from './src/routes/faceRoutes.js';
+import gradeRoutes from './src/routes/gradeRoutes.js';
+import inhalRoutes from './src/routes/inhalRoutes.js';
 import databaseRoutes from './src/routes/databaseRoutes.js';
 import fileRoutes from './src/routes/fileRoutes.js';
 
@@ -128,6 +130,8 @@ app.use('/api/student', studentRoutes);
 app.use('/api/teaching', teachingRoutes);
 app.use('/api/payment', paymentRoutes);
 app.use('/api', faceRoutes); // Face routes (includes /student/face, /teaching/face, /admin/face)
+app.use('/api/grades', gradeRoutes);
+app.use('/api/inhal', inhalRoutes);
 app.use('/api/database', databaseRoutes);
 app.use('/api/files', fileRoutes);
 

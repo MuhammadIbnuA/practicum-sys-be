@@ -23,6 +23,7 @@ enum AttendanceStatus {
   IZIN_LAIN
   IZIN_KAMPUS
   REJECTED // Submission rejected
+  INHAL // Izin Hadir Lanjut (Repraktikum) - paid absence makeup
 }
 
 enum SessionType {
@@ -64,6 +65,8 @@ model User {
   approvedAttendances  StudentAttendance[]   @relation("ApprovedBy")
   payments             Payment[]
   verifiedPayments     Payment[]             @relation("VerifiedPayments")
+  inhalPayments        InhalPayment[]        @relation("InhalPaymentStudent")
+  verifiedInhalPayments InhalPayment[]       @relation("InhalPaymentVerifier")
   faceData             FaceData?
   faceAttendanceLogs   FaceAttendanceLog[]   @relation("FaceAttendanceStudent")
   recognizedFaceLogs   FaceAttendanceLog[]   @relation("FaceAttendanceRecognizer")
@@ -205,6 +208,7 @@ model ClassSession {
   assistantAttendances AssistantAttendance[]
   permissionRequests   PermissionRequest[]
   faceAttendanceLogs   FaceAttendanceLog[]
+  inhalPayments        InhalPayment[]
 
   @@unique([class_id, session_number])
   @@index([class_id]) // Performance: queries by class
@@ -330,6 +334,36 @@ model Payment {
   @@index([status])
   @@index([created_at])
   @@map("payments")
+}
+
+// =============================================================================
+// INHAL PAYMENT MODEL (Repraktikum/Makeup Session Payment)
+// =============================================================================
+
+model InhalPayment {
+  id              Int           @id @default(autoincrement())
+  student_id      Int
+  session_id      Int
+  amount          Int           @default(30000) // IDR 30,000 for makeup session
+  proof_file_name String // Original filename of transfer proof
+  proof_file_url  String        @db.Text // MinIO URL or base64
+  status          PaymentStatus @default(PENDING)
+  verified_by_id  Int? // Admin who verified
+  verified_at     DateTime?
+  created_at      DateTime      @default(now())
+  updated_at      DateTime      @updatedAt
+
+  // Relations
+  student     User         @relation("InhalPaymentStudent", fields: [student_id], references: [id], onDelete: Cascade)
+  session     ClassSession @relation(fields: [session_id], references: [id], onDelete: Cascade)
+  verified_by User?        @relation("InhalPaymentVerifier", fields: [verified_by_id], references: [id])
+
+  @@unique([student_id, session_id]) // One INHAL payment per student per session
+  @@index([student_id])
+  @@index([session_id])
+  @@index([status])
+  @@index([created_at])
+  @@map("inhal_payments")
 }
 
 // =============================================================================
