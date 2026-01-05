@@ -7,8 +7,8 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "build": "prisma generate && prisma db push --skip-generate --accept-data-loss && npm run db:seed",
-    "vercel-build": "npm install && prisma generate && prisma db push --skip-generate --accept-data-loss && npm run db:seed",
+    "build": "node scripts/vercel-build.mjs",
+    "vercel-build": "node scripts/vercel-build.mjs",
     "postinstall": "npm run db:generate",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
