@@ -127,22 +127,32 @@ async function main() {
         const { allExist, missing } = await checkRequiredTables();
         
         if (!allExist) {
-            console.log(`\n⚠️  Missing ${missing.length} tables, running migrations...`);
+            console.log(`\n⚠️  Missing ${missing.length} tables: ${missing.join(', ')}`);
+            console.log('Running migrations...');
             
             // Try migrate deploy first (uses existing migrations)
             try {
                 exec('npx prisma migrate deploy', 'Apply migrations');
+                
+                // Verify tables were created
+                const { allExist: tablesCreated, missing: stillMissing } = await checkRequiredTables();
+                if (!tablesCreated) {
+                    console.log(`⚠️  Still missing tables after migration: ${stillMissing.join(', ')}`);
+                    console.log('Trying force reset...');
+                    exec('npx prisma db push --force-reset --skip-generate --accept-data-loss', 'Force reset and push schema');
+                }
             } catch (error) {
                 console.log('⚠️  Migrate deploy failed, trying db push with force reset...');
                 // If migrations fail, force reset and recreate
                 exec('npx prisma db push --force-reset --skip-generate --accept-data-loss', 'Force reset and push schema');
             }
             
-            // Verify tables were created
-            const { allExist: tablesCreated } = await checkRequiredTables();
-            if (!tablesCreated) {
-                throw new Error('Failed to create required tables');
+            // Final verification
+            const { allExist: finalCheck, missing: finalMissing } = await checkRequiredTables();
+            if (!finalCheck) {
+                throw new Error(`Failed to create required tables: ${finalMissing.join(', ')}`);
             }
+            console.log('✅ All tables created successfully');
         } else {
             // Tables exist, just sync schema
             try {
