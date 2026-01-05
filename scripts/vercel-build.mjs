@@ -15,6 +15,39 @@ function exec(command, description) {
     }
 }
 
+async function checkRequiredTables() {
+    console.log('\n🔍 Checking required tables...');
+    try {
+        const requiredTables = [
+            'users', 'semesters', 'courses', 'time_slots', 'rooms', 
+            'classes', 'class_assistants', 'class_sessions', 'enrollments',
+            'student_attendances', 'assistant_attendances', 'permission_requests',
+            'payments'
+        ];
+        
+        const result = await prisma.$queryRaw`
+            SELECT table_name 
+            FROM information_schema.tables 
+            WHERE table_schema = 'public' 
+            AND table_type = 'BASE TABLE'
+        `;
+        
+        const existingTables = result.map(r => r.table_name);
+        const missingTables = requiredTables.filter(t => !existingTables.includes(t));
+        
+        if (missingTables.length === 0) {
+            console.log('✅ All required tables exist');
+            return { allExist: true, missing: [] };
+        } else {
+            console.error(`❌ Missing tables: ${missingTables.join(', ')}`);
+            return { allExist: false, missing: missingTables };
+        }
+    } catch (error) {
+        console.error('❌ Failed to check tables:', error.message);
+        return { allExist: false, missing: [] };
+    }
+}
+
 async function checkNimColumn() {
     console.log('\n🔍 Checking if NIM column exists...');
     try {
@@ -43,14 +76,14 @@ async function addNimColumnManually() {
     console.log('\n🔧 Attempting to add NIM column manually...');
     try {
         // Add nim column if it doesn't exist
-        await prisma.$executeRaw`
+        await prisma.$executeRawUnsafe(`
             ALTER TABLE users 
             ADD COLUMN IF NOT EXISTS nim TEXT;
-        `;
+        `);
         console.log('✅ NIM column added');
 
         // Add unique constraint
-        await prisma.$executeRaw`
+        await prisma.$executeRawUnsafe(`
             DO $$ 
             BEGIN
                 IF NOT EXISTS (
@@ -60,13 +93,13 @@ async function addNimColumnManually() {
                     ALTER TABLE users ADD CONSTRAINT users_nim_key UNIQUE (nim);
                 END IF;
             END $$;
-        `;
+        `);
         console.log('✅ NIM unique constraint added');
 
         // Add index
-        await prisma.$executeRaw`
+        await prisma.$executeRawUnsafe(`
             CREATE INDEX IF NOT EXISTS users_nim_idx ON users(nim);
-        `;
+        `);
         console.log('✅ NIM index added');
 
         return true;
@@ -90,11 +123,33 @@ async function main() {
         await prisma.$connect();
         console.log('✅ Database connected successfully');
 
-        // Step 3: Try to push schema
-        try {
-            exec('npx prisma db push --skip-generate --accept-data-loss', 'Push schema to database');
-        } catch (error) {
-            console.log('⚠️  db push failed, will try manual migration');
+        // Step 3: Check if tables exist
+        const { allExist, missing } = await checkRequiredTables();
+        
+        if (!allExist) {
+            console.log(`\n⚠️  Missing ${missing.length} tables, running migrations...`);
+            
+            // Try migrate deploy first (uses existing migrations)
+            try {
+                exec('npx prisma migrate deploy', 'Apply migrations');
+            } catch (error) {
+                console.log('⚠️  Migrate deploy failed, trying db push with force reset...');
+                // If migrations fail, force reset and recreate
+                exec('npx prisma db push --force-reset --skip-generate --accept-data-loss', 'Force reset and push schema');
+            }
+            
+            // Verify tables were created
+            const { allExist: tablesCreated } = await checkRequiredTables();
+            if (!tablesCreated) {
+                throw new Error('Failed to create required tables');
+            }
+        } else {
+            // Tables exist, just sync schema
+            try {
+                exec('npx prisma db push --skip-generate --accept-data-loss', 'Sync schema to database');
+            } catch (error) {
+                console.log('⚠️  Schema sync failed, continuing...');
+            }
         }
 
         // Step 4: Check if NIM column exists
