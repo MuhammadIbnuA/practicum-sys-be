@@ -71,35 +71,31 @@ export const initializeBuckets = async () => {
  * @param {string} base64Data - Base64 encoded file (with data:image/jpeg;base64, prefix)
  * @param {string} bucket - Bucket name
  * @param {string} prefix - File prefix (e.g., 'user-123')
- * @returns {Promise<string>} - File URL or base64 data if MinIO unavailable
+ * @returns {Promise<string>} - File URL (throws error if upload fails)
  */
 export const uploadBase64File = async (base64Data, bucket, prefix = '') => {
-    try {
-        const client = getMinioClient();
-        const matches = base64Data.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
-        if (!matches || matches.length !== 3) {
-            throw new Error('Invalid base64 format');
-        }
-
-        const mimeType = matches[1];
-        const base64Content = matches[2];
-        const buffer = Buffer.from(base64Content, 'base64');
-
-        const extension = mimeType.split('/')[1] || 'bin';
-        const filename = `${prefix}-${Date.now()}-${crypto.randomBytes(8).toString('hex')}.${extension}`;
-
-        await client.putObject(bucket, filename, buffer, buffer.length, {
-            'Content-Type': mimeType
-        });
-
-        const url = await getFileUrl(bucket, filename);
-        return url;
-    } catch (error) {
-        console.error('MinIO upload error:', error.message);
-        console.log('⚠️  Falling back to base64 storage');
-        // Fallback: return base64 data if MinIO fails
-        return base64Data;
+    console.log(`[MinIO] Attempting upload to bucket: ${bucket}, prefix: ${prefix}`);
+    const client = getMinioClient();
+    const matches = base64Data.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+    if (!matches || matches.length !== 3) {
+        throw new Error('Invalid base64 format');
     }
+
+    const mimeType = matches[1];
+    const base64Content = matches[2];
+    const buffer = Buffer.from(base64Content, 'base64');
+
+    const extension = mimeType.split('/')[1] || 'bin';
+    const filename = `${prefix}-${Date.now()}-${crypto.randomBytes(8).toString('hex')}.${extension}`;
+
+    console.log(`[MinIO] Uploading file: ${filename}, size: ${buffer.length} bytes`);
+    await client.putObject(bucket, filename, buffer, buffer.length, {
+        'Content-Type': mimeType
+    });
+
+    const url = await getFileUrl(bucket, filename);
+    console.log(`[MinIO] Upload successful: ${url}`);
+    return url;
 };
 
 /**
@@ -107,18 +103,11 @@ export const uploadBase64File = async (base64Data, bucket, prefix = '') => {
  * @param {string[]} base64Files - Array of base64 encoded files
  * @param {string} bucket - Bucket name
  * @param {string} prefix - File prefix
- * @returns {Promise<string[]>} - Array of file URLs or base64 data
+ * @returns {Promise<string[]>} - Array of file URLs (throws error if any upload fails)
  */
 export const uploadMultipleBase64Files = async (base64Files, bucket, prefix = '') => {
-    try {
-        const uploadPromises = base64Files.map(file => uploadBase64File(file, bucket, prefix));
-        return await Promise.all(uploadPromises);
-    } catch (error) {
-        console.error('MinIO multiple upload error:', error.message);
-        console.log('⚠️  Falling back to base64 storage');
-        // Fallback: return base64 data if MinIO fails
-        return base64Files;
-    }
+    const uploadPromises = base64Files.map(file => uploadBase64File(file, bucket, prefix));
+    return await Promise.all(uploadPromises);
 };
 
 /**
