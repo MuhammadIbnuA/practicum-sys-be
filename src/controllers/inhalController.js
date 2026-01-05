@@ -38,7 +38,7 @@ export const submitInhalPayment = async (req, res) => {
             return apiResponse.error(res, 'You are not enrolled in this class', 404);
         }
 
-        // Check attendance status - must be ALPHA or IZIN_*
+        // Check attendance status - must be ALPHA only
         const attendance = await prisma.studentAttendance.findUnique({
             where: {
                 enrollment_class_id_enrollment_user_id_session_id: {
@@ -53,8 +53,8 @@ export const submitInhalPayment = async (req, res) => {
             return apiResponse.error(res, 'Attendance record not found', 404);
         }
 
-        if (attendance.status === 'HADIR' || attendance.status === 'INHAL' || attendance.status === 'PENDING') {
-            return apiResponse.error(res, `Cannot apply for INHAL with status: ${attendance.status}`, 400);
+        if (attendance.status !== 'ALPHA') {
+            return apiResponse.error(res, `Cannot apply for INHAL. Current status: ${attendance.status}. Only ALPHA (absent) can apply for INHAL.`, 400);
         }
 
         // Check if INHAL payment already exists

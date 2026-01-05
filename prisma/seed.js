@@ -96,7 +96,7 @@ async function main() {
     try {
         await prisma.user.create({
             data: { 
-                email: 'admin@practicum.com', 
+                email: 'admin@apollo.com', 
                 password: adminPassword, 
                 name: 'Administrator', 
                 is_admin: true,
@@ -364,7 +364,7 @@ async function main() {
    Payments:       ${await prisma.payment.count()}
 
 🔐 LOGIN:
-   Admin:    admin@practicum.com / admin123
+   Admin:    admin@apollo.com / admin123
    Students: student1@student.com ... / password123
    (student1-10 are also assistants)
 

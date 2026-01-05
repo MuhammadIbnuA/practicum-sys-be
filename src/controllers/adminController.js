@@ -1085,16 +1085,29 @@ export const getStudents = async (req, res) => {
         const limit = parseInt(req.query.limit) || 50;
         const skip = (page - 1) * limit;
         const search = req.query.search || '';
+        const theoryClass = req.query.theoryClass || '';
+        const practicumClass = req.query.practicumClass || '';
 
         const where = {
             is_admin: false,
             ...(search && {
                 OR: [
                     { name: { contains: search, mode: 'insensitive' } },
-                    { email: { contains: search, mode: 'insensitive' } }
+                    { email: { contains: search, mode: 'insensitive' } },
+                    { nim: { contains: search, mode: 'insensitive' } }
                 ]
             })
         };
+
+        // Add enrollment filters if specified
+        if (theoryClass || practicumClass) {
+            where.enrollments = {
+                some: {
+                    ...(theoryClass && { theory_class: { contains: theoryClass, mode: 'insensitive' } }),
+                    ...(practicumClass && { class_id: parseInt(practicumClass) })
+                }
+            };
+        }
 
         let students, total;
         
@@ -1109,7 +1122,19 @@ export const getStudents = async (req, res) => {
                         name: true,
                         nim: true,
                         created_at: true,
-                        _count: { select: { enrollments: true } }
+                        _count: { select: { enrollments: true } },
+                        enrollments: {
+                            select: {
+                                theory_class: true,
+                                class: {
+                                    select: {
+                                        id: true,
+                                        name: true,
+                                        course: { select: { code: true, name: true } }
+                                    }
+                                }
+                            }
+                        }
                     },
                     orderBy: { created_at: 'desc' },
                     skip,
@@ -1128,7 +1153,19 @@ export const getStudents = async (req, res) => {
                             email: true,
                             name: true,
                             created_at: true,
-                            _count: { select: { enrollments: true } }
+                            _count: { select: { enrollments: true } },
+                            enrollments: {
+                                select: {
+                                    theory_class: true,
+                                    class: {
+                                        select: {
+                                            id: true,
+                                            name: true,
+                                            course: { select: { code: true, name: true } }
+                                        }
+                                    }
+                                }
+                            }
                         },
                         orderBy: { created_at: 'desc' },
                         skip,

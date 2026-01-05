@@ -17,15 +17,15 @@ const PAYMENT_EXPIRY_DAYS = 7;
 /**
  * Submit payment proof for class enrollment
  * POST /api/payment/submit
- * Body: { classId, proofFileName, proofFileData (base64) }
+ * Body: { classId, theoryClass, proofFileName, proofFileData (base64) }
  */
 export const submitPayment = async (req, res) => {
     try {
-        const { classId, proofFileName, proofFileData } = req.body;
+        const { classId, theoryClass, proofFileName, proofFileData } = req.body;
         const studentId = req.user.id;
 
-        if (!classId || !proofFileName || !proofFileData) {
-            return apiResponse.error(res, 'Class ID, proof file name, and proof file data are required.', 400);
+        if (!classId || !theoryClass || !proofFileName || !proofFileData) {
+            return apiResponse.error(res, 'Class ID, theory class, proof file name, and proof file data are required.', 400);
         }
 
         // Verify class exists
@@ -62,7 +62,7 @@ export const submitPayment = async (req, res) => {
             }
         }
 
-        // Create or update payment
+        // Create or update payment with theory_class
         const payment = await prisma.payment.upsert({
             where: {
                 student_id_class_id: {
@@ -71,6 +71,7 @@ export const submitPayment = async (req, res) => {
                 }
             },
             update: {
+                theory_class: theoryClass,
                 proof_file_name: proofFileName,
                 proof_file_url: fileUrl,
                 status: 'PENDING',
@@ -79,6 +80,7 @@ export const submitPayment = async (req, res) => {
             create: {
                 student_id: studentId,
                 class_id: parseInt(classId),
+                theory_class: theoryClass,
                 amount: PAYMENT_AMOUNT,
                 proof_file_name: proofFileName,
                 proof_file_url: fileUrl,
@@ -280,11 +282,12 @@ export const verifyPayment = async (req, res) => {
                 }
             });
 
-            // Create enrollment
+            // Create enrollment with theory_class from payment
             const enrollment = await tx.enrollment.create({
                 data: {
                     class_id: payment.class_id,
-                    user_id: payment.student_id
+                    user_id: payment.student_id,
+                    theory_class: payment.theory_class
                 },
                 include: {
                     class: { include: { course: true } },

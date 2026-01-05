@@ -1,7 +1,7 @@
 {
-  "name": "practicum-attendance-api",
+  "name": "apollo-attendance-api",
   "version": "1.0.0",
-  "description": "University Practicum Attendance Management System REST API",
+  "description": "Apollo Attendance System - University Practicum Management REST API",
   "main": "server.js",
   "type": "module",
   "scripts": {
@@ -21,6 +21,8 @@
     "seed": "node prisma/seed.js"
   },
   "keywords": [
+    "apollo",
+    "attendance",
     "practicum",
     "attendance",
     "university",
