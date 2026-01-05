@@ -130,29 +130,52 @@ async function main() {
             // Disconnect before schema changes
             await prisma.$disconnect();
             
-            // Force reset - this will drop and recreate everything
-            // Note: --force-reset includes generation, so no need for separate generate
+            // Force reset - this will drop and recreate everything AND regenerate client
             exec('npx prisma db push --force-reset --accept-data-loss', 'Force reset and recreate all tables');
             
-            // Reconnect with new schema
-            prisma = new PrismaClient();
-            await prisma.$connect();
+            // CRITICAL: Wait a moment for file system to sync
+            await new Promise(resolve => setTimeout(resolve, 2000));
             
-            // Verify tables were created
-            const { allExist: finalCheck, missing: finalMissing } = await checkRequiredTables();
-            if (!finalCheck) {
-                throw new Error(`Failed to create required tables: ${finalMissing.join(', ')}`);
+            // Create a completely NEW Prisma Client instance (not reusing the old one)
+            const { PrismaClient: FreshPrismaClient } = await import('@prisma/client');
+            prisma = new FreshPrismaClient();
+            await prisma.$connect();
+            console.log('✅ Reconnected with fresh Prisma Client');
+            
+            // Now verify with the fresh client
+            const result = await prisma.$queryRaw`
+                SELECT table_name 
+                FROM information_schema.tables 
+                WHERE table_schema = 'public' 
+                AND table_type = 'BASE TABLE'
+            `;
+            
+            const existingTables = result.map(r => r.table_name);
+            const requiredTables = [
+                'users', 'semesters', 'courses', 'time_slots', 'rooms', 
+                'classes', 'class_assistants', 'class_sessions', 'enrollments',
+                'student_attendances', 'assistant_attendances', 'permission_requests',
+                'payments'
+            ];
+            const stillMissing = requiredTables.filter(t => !existingTables.includes(t));
+            
+            if (stillMissing.length > 0) {
+                console.error(`❌ Still missing tables: ${stillMissing.join(', ')}`);
+                console.log('Tables found:', existingTables.join(', '));
+                throw new Error(`Failed to create required tables: ${stillMissing.join(', ')}`);
             }
             console.log('✅ All tables created successfully');
         } else {
-            // Tables exist, just sync schema (this also regenerates client)
+            // Tables exist, just sync schema
             await prisma.$disconnect();
             try {
                 exec('npx prisma db push --accept-data-loss', 'Sync schema to database');
+                await new Promise(resolve => setTimeout(resolve, 1000));
             } catch (error) {
                 console.log('⚠️  Schema sync failed, continuing...');
             }
-            prisma = new PrismaClient();
+            const { PrismaClient: FreshPrismaClient } = await import('@prisma/client');
+            prisma = new FreshPrismaClient();
             await prisma.$connect();
         }
 
