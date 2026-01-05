@@ -6,21 +6,28 @@
 import { Client } from 'minio';
 import crypto from 'crypto';
 
-// MinIO Configuration
-const minioClient = new Client({
-    endPoint: process.env.MINIO_ENDPOINT || 'your-minio-server.com',
-    port: parseInt(process.env.MINIO_PORT) || 9000,
-    useSSL: process.env.MINIO_USE_SSL === 'true',
-    accessKey: process.env.MINIO_ACCESS_KEY || 'NBGVSD4PD2OKEDNIC0CD',
-    secretKey: process.env.MINIO_SECRET_KEY || 'J6vss1VUXMusUUniOWY2dbSYhQ5VEJ9H+E2Jojhm'
-});
-
 // Bucket names
-const BUCKETS = {
+export const BUCKETS = {
     PAYMENTS: 'payments',
     PERMISSIONS: 'permissions',
     FACES: 'faces',
     ATTENDANCE: 'attendance'
+};
+
+// Lazy initialization of MinIO client
+let minioClient = null;
+
+const getMinioClient = () => {
+    if (!minioClient) {
+        minioClient = new Client({
+            endPoint: process.env.MINIO_ENDPOINT || 'localhost',
+            port: parseInt(process.env.MINIO_PORT) || 9000,
+            useSSL: process.env.MINIO_USE_SSL === 'true',
+            accessKey: process.env.MINIO_ACCESS_KEY || 'minioadmin',
+            secretKey: process.env.MINIO_SECRET_KEY || 'minioadmin'
+        });
+    }
+    return minioClient;
 };
 
 /**
@@ -28,29 +35,33 @@ const BUCKETS = {
  */
 export const initializeBuckets = async () => {
     try {
+        const client = getMinioClient();
         for (const bucket of Object.values(BUCKETS)) {
-            const exists = await minioClient.bucketExists(bucket);
-            if (!exists) {
-                await minioClient.makeBucket(bucket, 'us-east-1');
-                console.log(`✓ Created MinIO bucket: ${bucket}`);
-                
-                // Set public read policy for easier access (optional)
-                const policy = {
-                    Version: '2012-10-17',
-                    Statement: [{
-                        Effect: 'Allow',
-                        Principal: { AWS: ['*'] },
-                        Action: ['s3:GetObject'],
-                        Resource: [`arn:aws:s3:::${bucket}/*`]
-                    }]
-                };
-                await minioClient.setBucketPolicy(bucket, JSON.stringify(policy));
+            try {
+                const exists = await client.bucketExists(bucket);
+                if (!exists) {
+                    await client.makeBucket(bucket, 'us-east-1');
+                    console.log(`✓ Created MinIO bucket: ${bucket}`);
+                    
+                    const policy = {
+                        Version: '2012-10-17',
+                        Statement: [{
+                            Effect: 'Allow',
+                            Principal: { AWS: ['*'] },
+                            Action: ['s3:GetObject'],
+                            Resource: [`arn:aws:s3:::${bucket}/*`]
+                        }]
+                    };
+                    await client.setBucketPolicy(bucket, JSON.stringify(policy));
+                }
+            } catch (bucketError) {
+                console.log(`⚠️  Skipped bucket ${bucket}:`, bucketError.message);
             }
         }
         console.log('✓ MinIO buckets initialized');
         return true;
     } catch (error) {
-        console.error('MinIO initialization error:', error);
+        console.error('⚠️  MinIO initialization error:', error.message);
         return false;
     }
 };
@@ -60,11 +71,11 @@ export const initializeBuckets = async () => {
  * @param {string} base64Data - Base64 encoded file (with data:image/jpeg;base64, prefix)
  * @param {string} bucket - Bucket name
  * @param {string} prefix - File prefix (e.g., 'user-123')
- * @returns {Promise<string>} - File URL
+ * @returns {Promise<string>} - File URL or base64 data if MinIO unavailable
  */
 export const uploadBase64File = async (base64Data, bucket, prefix = '') => {
     try {
-        // Extract mime type and base64 content
+        const client = getMinioClient();
         const matches = base64Data.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
         if (!matches || matches.length !== 3) {
             throw new Error('Invalid base64 format');
@@ -74,21 +85,20 @@ export const uploadBase64File = async (base64Data, bucket, prefix = '') => {
         const base64Content = matches[2];
         const buffer = Buffer.from(base64Content, 'base64');
 
-        // Generate unique filename
         const extension = mimeType.split('/')[1] || 'bin';
         const filename = `${prefix}-${Date.now()}-${crypto.randomBytes(8).toString('hex')}.${extension}`;
 
-        // Upload to MinIO
-        await minioClient.putObject(bucket, filename, buffer, buffer.length, {
+        await client.putObject(bucket, filename, buffer, buffer.length, {
             'Content-Type': mimeType
         });
 
-        // Return URL
         const url = await getFileUrl(bucket, filename);
         return url;
     } catch (error) {
-        console.error('MinIO upload error:', error);
-        throw new Error('Failed to upload file to storage');
+        console.error('MinIO upload error:', error.message);
+        console.log('⚠️  Falling back to base64 storage');
+        // Fallback: return base64 data if MinIO fails
+        return base64Data;
     }
 };
 
@@ -97,15 +107,17 @@ export const uploadBase64File = async (base64Data, bucket, prefix = '') => {
  * @param {string[]} base64Files - Array of base64 encoded files
  * @param {string} bucket - Bucket name
  * @param {string} prefix - File prefix
- * @returns {Promise<string[]>} - Array of file URLs
+ * @returns {Promise<string[]>} - Array of file URLs or base64 data
  */
 export const uploadMultipleBase64Files = async (base64Files, bucket, prefix = '') => {
     try {
         const uploadPromises = base64Files.map(file => uploadBase64File(file, bucket, prefix));
         return await Promise.all(uploadPromises);
     } catch (error) {
-        console.error('MinIO multiple upload error:', error);
-        throw new Error('Failed to upload files to storage');
+        console.error('MinIO multiple upload error:', error.message);
+        console.log('⚠️  Falling back to base64 storage');
+        // Fallback: return base64 data if MinIO fails
+        return base64Files;
     }
 };
 
@@ -118,6 +130,7 @@ export const uploadMultipleBase64Files = async (base64Files, bucket, prefix = ''
  */
 export const getFileUrl = async (bucket, filename, expiry = 7 * 24 * 60 * 60) => {
     try {
+        const client = getMinioClient();
         // For public buckets, return direct URL
         const endpoint = process.env.MINIO_ENDPOINT || 'your-minio-server.com';
         const port = process.env.MINIO_PORT || 9000;
@@ -129,7 +142,7 @@ export const getFileUrl = async (bucket, filename, expiry = 7 * 24 * 60 * 60) =>
         }
         
         // Otherwise, return presigned URL
-        return await minioClient.presignedGetObject(bucket, filename, expiry);
+        return await client.presignedGetObject(bucket, filename, expiry);
     } catch (error) {
         console.error('MinIO get URL error:', error);
         throw new Error('Failed to get file URL');
@@ -143,7 +156,8 @@ export const getFileUrl = async (bucket, filename, expiry = 7 * 24 * 60 * 60) =>
  */
 export const deleteFile = async (bucket, filename) => {
     try {
-        await minioClient.removeObject(bucket, filename);
+        const client = getMinioClient();
+        await client.removeObject(bucket, filename);
         return true;
     } catch (error) {
         console.error('MinIO delete error:', error);

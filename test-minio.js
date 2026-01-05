@@ -6,6 +6,13 @@
 import 'dotenv/config';
 import { initializeBuckets, uploadBase64File, BUCKETS, getFileUrl, deleteFile } from './src/services/minioService.js';
 
+console.log('🔧 MinIO Configuration:');
+console.log(`   Endpoint: ${process.env.MINIO_ENDPOINT}`);
+console.log(`   Port: ${process.env.MINIO_PORT}`);
+console.log(`   SSL: ${process.env.MINIO_USE_SSL}`);
+console.log(`   Access Key: ${process.env.MINIO_ACCESS_KEY?.substring(0, 10)}...`);
+console.log('');
+
 const testMinIO = async () => {
     console.log('🧪 Testing MinIO Integration...\n');
 

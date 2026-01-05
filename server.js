@@ -164,8 +164,13 @@ if (process.env.NODE_ENV !== 'production') {
         console.log(`  Health:      http://localhost:${PORT}/api/health`);
         console.log('='.repeat(50));
         
-        // Initialize MinIO buckets
-        await initializeBuckets();
+        // Initialize MinIO buckets (optional - will continue if fails)
+        try {
+            await initializeBuckets();
+        } catch (error) {
+            console.log('⚠️  MinIO initialization skipped:', error.message);
+            console.log('   Server will continue without MinIO (files will use base64)');
+        }
     });
 }
 
