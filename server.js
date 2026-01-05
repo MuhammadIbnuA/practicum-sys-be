@@ -16,6 +16,7 @@ import teachingRoutes from './src/routes/teachingRoutes.js';
 import paymentRoutes from './src/routes/paymentRoutes.js';
 import faceRoutes from './src/routes/faceRoutes.js';
 import databaseRoutes from './src/routes/databaseRoutes.js';
+import fileRoutes from './src/routes/fileRoutes.js';
 
 // Import services
 import { initializeBuckets } from './src/services/minioService.js';
@@ -128,6 +129,7 @@ app.use('/api/teaching', teachingRoutes);
 app.use('/api/payment', paymentRoutes);
 app.use('/api', faceRoutes); // Face routes (includes /student/face, /teaching/face, /admin/face)
 app.use('/api/database', databaseRoutes);
+app.use('/api/files', fileRoutes);
 
 // =============================================================================
 // ERROR HANDLING

@@ -5,6 +5,7 @@
 
 import prisma from '../lib/prisma.js';
 import { apiResponse, calculateAttendancePercentage, calculateAverageGrade } from '../utils/helpers.js';
+import { uploadBase64File, BUCKETS, deleteFile, parseMinioUrl } from '../services/minioService.js';
 
 // Day names for display
 const DAY_NAMES = { 1: 'Senin', 2: 'Selasa', 3: 'Rabu', 4: 'Kamis', 5: 'Jumat' };
@@ -401,18 +402,15 @@ export const getClassReport = async (req, res) => {
 /**
  * Submit a permission request
  * POST /api/student/permissions
+ * Body: { session_id, reason, file_name, file_data (base64) }
  */
 export const submitPermission = async (req, res) => {
     try {
         const userId = req.user.id;
-        const { session_id, reason } = req.body;
+        const { session_id, reason, file_name, file_data } = req.body;
 
-        if (!session_id || !reason) {
-            return apiResponse.error(res, 'Session ID and reason are required.', 400);
-        }
-
-        if (!req.file) {
-            return apiResponse.error(res, 'Permission letter file is required.', 400);
+        if (!session_id || !reason || !file_name || !file_data) {
+            return apiResponse.error(res, 'Session ID, reason, file name, and file data are required.', 400);
         }
 
         const session = await prisma.classSession.findUnique({
@@ -446,15 +444,41 @@ export const submitPermission = async (req, res) => {
         });
 
         if (existingRequest) {
-            return apiResponse.error(res, 'You already have a pending request for this session.', 409);
+            // Delete old file if exists
+            if (existingRequest.file_data) {
+                const parsed = parseMinioUrl(existingRequest.file_data);
+                if (parsed) {
+                    await deleteFile(parsed.bucket, parsed.filename);
+                }
+            }
         }
 
-        const permission = await prisma.permissionRequest.create({
-            data: {
+        // Upload file to MinIO
+        const fileUrl = await uploadBase64File(
+            file_data,
+            BUCKETS.PERMISSIONS,
+            `student-${userId}-session-${session_id}`
+        );
+
+        const permission = await prisma.permissionRequest.upsert({
+            where: {
+                student_id_session_id: {
+                    student_id: userId,
+                    session_id: parseInt(session_id)
+                }
+            },
+            update: {
+                file_name,
+                file_data: fileUrl,
+                reason,
+                status: 'PENDING',
+                updated_at: new Date()
+            },
+            create: {
                 student_id: userId,
                 session_id: parseInt(session_id),
-                file_name: req.file.originalname,
-                file_data: req.file.base64,
+                file_name,
+                file_data: fileUrl,
                 reason
             },
             include: {
