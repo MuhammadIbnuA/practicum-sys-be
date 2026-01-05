@@ -92,19 +92,58 @@ async function main() {
         'Jihan Aulia', 'Kevin Pratama', 'Lina Marlina', 'Muhammad Fadli', 'Nadia Safitri',
     ];
 
-    await prisma.user.create({
-        data: { email: 'admin@practicum.com', password: adminPassword, name: 'Administrator', is_admin: true }
-    });
+    // Create admin user
+    try {
+        await prisma.user.create({
+            data: { 
+                email: 'admin@practicum.com', 
+                password: adminPassword, 
+                name: 'Administrator', 
+                is_admin: true,
+                nim: null  // NIM is optional
+            }
+        });
+    } catch (e) {
+        if (e.code === 'P2002') {
+            console.log('Admin user already exists, skipping...');
+        } else {
+            throw e;
+        }
+    }
 
-    await prisma.user.createMany({
-        data: studentNames.map((name, i) => ({
-            email: `student${i + 1}@student.com`,
-            password: hashedPassword,
-            name,
-            nim: `2024${String(i + 1).padStart(5, '0')}`,
-            is_admin: false
-        }))
-    });
+    // Create student users with NIM
+    const studentData = studentNames.map((name, i) => ({
+        email: `student${i + 1}@student.com`,
+        password: hashedPassword,
+        name,
+        nim: `2024${String(i + 1).padStart(5, '0')}`,
+        is_admin: false
+    }));
+
+    // Try to create with NIM, if it fails (column doesn't exist), create without NIM
+    try {
+        await prisma.user.createMany({
+            data: studentData,
+            skipDuplicates: true
+        });
+    } catch (e) {
+        if (e.code === 'P2022' && e.meta?.column === 'users.nim') {
+            console.log('⚠️  NIM column not found, creating users without NIM...');
+            // Create without NIM field
+            const studentDataWithoutNim = studentNames.map((name, i) => ({
+                email: `student${i + 1}@student.com`,
+                password: hashedPassword,
+                name,
+                is_admin: false
+            }));
+            await prisma.user.createMany({
+                data: studentDataWithoutNim,
+                skipDuplicates: true
+            });
+        } else {
+            throw e;
+        }
+    }
     const users = await prisma.user.findMany({ where: { is_admin: false }, orderBy: { id: 'asc' } });
     console.log('✓ Users: 41 (1 admin + 40 students)');
 
