@@ -219,15 +219,21 @@ async function main() {
     await prisma.classAssistant.createMany({ data: assistantData });
     console.log('✓ Assistant Assignments: 40');
 
-    // 9. ENROLLMENTS (15 students per class)
+    // 9. ENROLLMENTS (15 students per class with varied theory classes)
     const enrollableStudents = users.slice(10);
+    const theoryClasses = ['A', 'B', 'C', 'D']; // Available theory classes
     const enrollmentData = [];
+    
     for (let i = 0; i < classes.length; i++) {
         for (let j = 0; j < 15; j++) {
             const studentIdx = (i * 3 + j) % enrollableStudents.length;
+            // Assign theory class in a distributed way - students in same practicum have different theory classes
+            const theoryClass = theoryClasses[j % theoryClasses.length];
+            
             enrollmentData.push({
                 class_id: classes[i].id,
-                user_id: enrollableStudents[studentIdx].id
+                user_id: enrollableStudents[studentIdx].id,
+                theory_class: theoryClass
             });
         }
     }
@@ -235,7 +241,7 @@ async function main() {
     const uniqueEnrollments = [...new Map(enrollmentData.map(e => [`${e.class_id}-${e.user_id}`, e])).values()];
     await prisma.enrollment.createMany({ data: uniqueEnrollments, skipDuplicates: true });
     const enrollmentCount = await prisma.enrollment.count();
-    console.log(`✓ Enrollments: ${enrollmentCount}`);
+    console.log(`✓ Enrollments: ${enrollmentCount} (with theory classes A, B, C, D)`);
 
 
     // 10. ATTENDANCE RECORDS (batch insert)
@@ -328,16 +334,20 @@ async function main() {
     await prisma.assistantAttendance.createMany({ data: checkInData, skipDuplicates: true });
     console.log(`✓ Assistant Check-ins: ${checkInData.length}`);
 
-    // 13. SAMPLE PAYMENTS (for testing payment system)
+    // 13. SAMPLE PAYMENTS (for testing payment system with theory classes)
     const paymentData = [];
-    const enrollableStudentsForPayment = users.slice(10, 20); // First 10 enrollable students
-    const classesForPayment = classes.slice(0, 5); // First 5 classes
+    const enrollableStudentsForPayment = users.slice(10, 25); // First 15 enrollable students
+    const classesForPayment = classes.slice(0, 8); // First 8 classes
     
     for (let i = 0; i < enrollableStudentsForPayment.length; i++) {
         const classIdx = i % classesForPayment.length;
+        // Assign theory class matching the enrollment pattern
+        const theoryClass = theoryClasses[i % theoryClasses.length];
+        
         paymentData.push({
             student_id: enrollableStudentsForPayment[i].id,
             class_id: classesForPayment[classIdx].id,
+            theory_class: theoryClass,
             amount: 5000,
             proof_file_name: `bukti_transfer_${i + 1}.jpg`,
             proof_file_url: 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/2wBDAQkJCQwLDBgNDRgyIRwhMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjL/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8VAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCwAA8A/9k=',
@@ -347,7 +357,7 @@ async function main() {
         });
     }
     await prisma.payment.createMany({ data: paymentData, skipDuplicates: true });
-    console.log(`✓ Sample Payments: ${paymentData.length}`);
+    console.log(`✓ Sample Payments: ${paymentData.length} (with theory classes)`);
 
     // SUMMARY
     console.log('\n' + '='.repeat(50));
@@ -372,6 +382,12 @@ async function main() {
    - Some payments are VERIFIED (auto-enrolled)
    - Some payments are PENDING (waiting for admin verification)
    - Some payments are REJECTED (for testing rejection flow)
+
+📚 THEORY CLASS DISTRIBUTION:
+   - Students enrolled with theory classes: A, B, C, D
+   - Each practicum class has students from different theory classes
+   - Use admin panel to filter by theory class or practicum class
+   - Grading system supports sorting by theory class or practicum class
 `);
     console.log('='.repeat(50));
 }

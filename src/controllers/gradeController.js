@@ -64,6 +64,7 @@ export const getClassGrades = async (req, res) => {
                 name: enrollment.user.name,
                 nim: enrollment.user.nim,
                 email: enrollment.user.email,
+                theory_class: enrollment.theory_class, // Include theory class
                 grades
             };
         });
@@ -260,6 +261,7 @@ export const getSessionGrades = async (req, res) => {
                 name: enrollment.user.name,
                 nim: enrollment.user.nim,
                 email: enrollment.user.email,
+                theory_class: enrollment.theory_class, // Include theory class
                 status: attendance?.status || 'ALPHA',
                 grade: attendance?.grade || null,
                 canEdit

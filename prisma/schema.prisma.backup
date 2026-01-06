@@ -49,34 +49,31 @@ enum PaymentStatus {
 // =============================================================================
 
 model User {
-  id         Int       @id @default(autoincrement())
-  email      String    @unique
-  nim        String?   @unique // Nomor Induk Siswa (Student ID Number)
+  id         Int      @id @default(autoincrement())
+  email      String   @unique
+  nim        String?  @unique // Nomor Induk Siswa (Student ID Number)
   password   String
   name       String
-  is_admin   Boolean   @default(false)
-  created_at DateTime  @default(now())
-  updated_at DateTime  @updatedAt
-  deleted_at DateTime? // Soft delete timestamp
+  is_admin   Boolean  @default(false)
+  created_at DateTime @default(now())
 
   // Relations - User can be both student and assistant
-  enrollments           Enrollment[]
-  classAssistants       ClassAssistant[]
-  assistantAttendances  AssistantAttendance[]
-  permissionRequests    PermissionRequest[]
-  approvedAttendances   StudentAttendance[]   @relation("ApprovedBy")
-  payments              Payment[]
-  verifiedPayments      Payment[]             @relation("VerifiedPayments")
-  inhalPayments         InhalPayment[]        @relation("InhalPaymentStudent")
-  verifiedInhalPayments InhalPayment[]        @relation("InhalPaymentVerifier")
-  faceData              FaceData?
-  faceAttendanceLogs    FaceAttendanceLog[]   @relation("FaceAttendanceStudent")
-  recognizedFaceLogs    FaceAttendanceLog[]   @relation("FaceAttendanceRecognizer")
+  enrollments          Enrollment[]
+  classAssistants      ClassAssistant[]
+  assistantAttendances AssistantAttendance[]
+  permissionRequests   PermissionRequest[]
+  approvedAttendances  StudentAttendance[]   @relation("ApprovedBy")
+  payments             Payment[]
+  verifiedPayments     Payment[]             @relation("VerifiedPayments")
+  inhalPayments        InhalPayment[]        @relation("InhalPaymentStudent")
+  verifiedInhalPayments InhalPayment[]       @relation("InhalPaymentVerifier")
+  faceData             FaceData?
+  faceAttendanceLogs   FaceAttendanceLog[]   @relation("FaceAttendanceStudent")
+  recognizedFaceLogs   FaceAttendanceLog[]   @relation("FaceAttendanceRecognizer")
 
   @@index([email]) // Performance: user lookup by email (login)
   @@index([nim]) // Performance: user lookup by NIM
   @@index([is_admin]) // Performance: filter admin users
-  @@index([deleted_at]) // Performance: filter soft deleted users
   @@map("users")
 }
 
@@ -85,18 +82,14 @@ model User {
 // =============================================================================
 
 model Semester {
-  id         Int       @id @default(autoincrement())
-  name       String // e.g., "Ganjil 2024"
-  is_active  Boolean   @default(false)
-  created_at DateTime  @default(now())
-  updated_at DateTime  @updatedAt
-  deleted_at DateTime? // Soft delete timestamp
+  id        Int     @id @default(autoincrement())
+  name      String // e.g., "Ganjil 2024"
+  is_active Boolean @default(false)
 
   // Relations
   classes Class[]
 
   @@index([is_active]) // Performance: filter active semesters
-  @@index([deleted_at]) // Performance: filter soft deleted semesters
   @@map("semesters")
 }
 
@@ -105,17 +98,13 @@ model Semester {
 // =============================================================================
 
 model Course {
-  id         Int       @id @default(autoincrement())
-  code       String    @unique
-  name       String
-  created_at DateTime  @default(now())
-  updated_at DateTime  @updatedAt
-  deleted_at DateTime? // Soft delete timestamp
+  id   Int    @id @default(autoincrement())
+  code String @unique
+  name String
 
   // Relations
   classes Class[]
 
-  @@index([deleted_at]) // Performance: filter soft deleted courses
   @@map("courses")
 }
 
@@ -156,7 +145,7 @@ model Room {
 // =============================================================================
 
 model Class {
-  id           Int       @id @default(autoincrement())
+  id           Int    @id @default(autoincrement())
   course_id    Int
   semester_id  Int
   name         String // e.g., "Kelas A"
@@ -164,9 +153,6 @@ model Class {
   day_of_week  Int // 1=Monday, 2=Tuesday, ..., 5=Friday
   time_slot_id Int
   room_id      Int
-  created_at   DateTime  @default(now())
-  updated_at   DateTime  @updatedAt
-  deleted_at   DateTime? // Soft delete timestamp
 
   // Relations
   course      Course           @relation(fields: [course_id], references: [id], onDelete: Cascade)
@@ -184,7 +170,6 @@ model Class {
   @@index([semester_id])
   @@index([time_slot_id])
   @@index([room_id])
-  @@index([deleted_at]) // Performance: filter soft deleted classes
   @@map("classes")
 }
 
@@ -238,9 +223,7 @@ model Enrollment {
   class_id     Int
   user_id      Int
   theory_class String? // Student's theory class (e.g., "A", "B", "C")
-  enrolled_at  DateTime  @default(now())
-  updated_at   DateTime  @updatedAt
-  deleted_at   DateTime? // Soft delete timestamp
+  enrolled_at  DateTime @default(now())
 
   // Relations
   class       Class               @relation(fields: [class_id], references: [id], onDelete: Cascade)
@@ -250,7 +233,6 @@ model Enrollment {
   @@id([class_id, user_id])
   @@index([user_id]) // Performance: queries by user
   @@index([theory_class]) // Performance: filter by theory class
-  @@index([deleted_at]) // Performance: filter soft deleted enrollments
   @@map("enrollments")
 }
 
@@ -265,16 +247,12 @@ model StudentAttendance {
   session_id          Int
   status              AttendanceStatus @default(ALPHA)
   grade               Float?
-  proof_file_url      String? // MinIO URL for attendance proof
+  proof_file_url      String?
 
   // Submission workflow
   submitted_at   DateTime? // When student submitted
   approved_by_id Int? // Assistant who approved
   approved_at    DateTime? // When approved
-
-  // Concurrency control
-  version    Int      @default(1) // Optimistic locking
-  updated_at DateTime @updatedAt
 
   // Relations
   enrollment  Enrollment   @relation(fields: [enrollment_class_id, enrollment_user_id], references: [class_id, user_id], onDelete: Cascade)
@@ -315,12 +293,11 @@ model PermissionRequest {
   student_id Int
   session_id Int
   file_name  String // Original filename
-  file_url   String // MinIO URL for permission file
+  file_data  String           @db.Text // Base64 encoded file
   reason     String
   status     PermissionStatus @default(PENDING)
   created_at DateTime         @default(now())
   updated_at DateTime         @updatedAt
-  version    Int              @default(1) // Optimistic locking
 
   // Relations
   student User         @relation(fields: [student_id], references: [id], onDelete: Cascade)
@@ -342,13 +319,12 @@ model Payment {
   theory_class    String? // Student's theory class (e.g., "A", "B", "C")
   amount          Int // IDR amount (5000)
   proof_file_name String // Original filename of transfer proof
-  proof_file_url  String // MinIO URL for payment proof
+  proof_file_url  String        @db.Text // Base64 encoded file or URL
   status          PaymentStatus @default(PENDING)
   verified_by_id  Int? // Admin who verified
   verified_at     DateTime?
   created_at      DateTime      @default(now())
   updated_at      DateTime      @updatedAt
-  version         Int           @default(1) // Optimistic locking
 
   // Relations
   student     User  @relation(fields: [student_id], references: [id], onDelete: Cascade)
@@ -374,13 +350,12 @@ model InhalPayment {
   session_id      Int
   amount          Int           @default(30000) // IDR 30,000 for makeup session
   proof_file_name String // Original filename of transfer proof
-  proof_file_url  String // MinIO URL for INHAL payment proof
+  proof_file_url  String        @db.Text // MinIO URL or base64
   status          PaymentStatus @default(PENDING)
   verified_by_id  Int? // Admin who verified
   verified_at     DateTime?
   created_at      DateTime      @default(now())
   updated_at      DateTime      @updatedAt
-  version         Int           @default(1) // Optimistic locking
 
   // Relations
   student     User         @relation("InhalPaymentStudent", fields: [student_id], references: [id], onDelete: Cascade)
@@ -419,14 +394,14 @@ model FaceData {
 }
 
 model FaceAttendanceLog {
-  id                  Int      @id @default(autoincrement())
-  student_id          Int
-  session_id          Int
-  confidence_score    Float // 0.0 - 1.0 (similarity score)
-  captured_image_url  String // MinIO URL for captured face image (audit)
-  device_info         String? // Browser/device information
-  recognized_by_id    Int? // Assistant who was operating the scanner
-  created_at          DateTime @default(now())
+  id               Int      @id @default(autoincrement())
+  student_id       Int
+  session_id       Int
+  confidence_score Float // 0.0 - 1.0 (similarity score)
+  captured_image   String   @db.Text // base64 of captured face for audit
+  device_info      String? // Browser/device information
+  recognized_by_id Int? // Assistant who was operating the scanner
+  created_at       DateTime @default(now())
 
   // Relations
   student       User         @relation("FaceAttendanceStudent", fields: [student_id], references: [id], onDelete: Cascade)
